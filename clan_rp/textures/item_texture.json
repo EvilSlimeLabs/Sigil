@@ -1,0 +1,9 @@
+{
+  "resource_pack_name": "clan_system",
+  "texture_name": "atlas.items",
+  "texture_data": {
+    "clan_compass": {
+      "textures": "textures/items/clan_compass"
+    }
+  }
+}

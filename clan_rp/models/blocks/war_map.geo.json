@@ -1,0 +1,65 @@
+{
+  "format_version": "1.16.0",
+  "minecraft:geometry": [
+    {
+      "description": {
+        "identifier": "geometry.clan_war_map_floor",
+        "texture_width": 64,
+        "texture_height": 64,
+        "visible_bounds_width": 2,
+        "visible_bounds_height": 1,
+        "visible_bounds_offset": [0, 0.5, 0]
+      },
+      "bones": [
+        {
+          "name": "map",
+          "pivot": [0, 0, 0],
+          "cubes": [
+            {
+              "origin": [-8, 0, -8],
+              "size": [16, 1, 16],
+              "uv": {
+                "up": { "uv": [0, 0], "uv_size": [64, 64] },
+                "down": { "uv": [0, 0], "uv_size": [64, 64] },
+                "north": { "uv": [0, 0], "uv_size": [64, 4] },
+                "south": { "uv": [0, 0], "uv_size": [64, 4] },
+                "east": { "uv": [0, 0], "uv_size": [64, 4] },
+                "west": { "uv": [0, 0], "uv_size": [64, 4] }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "description": {
+        "identifier": "geometry.clan_war_map_wall",
+        "texture_width": 64,
+        "texture_height": 64,
+        "visible_bounds_width": 2,
+        "visible_bounds_height": 2,
+        "visible_bounds_offset": [0, 0.5, 0]
+      },
+      "bones": [
+        {
+          "name": "map",
+          "pivot": [0, 0, 0],
+          "cubes": [
+            {
+              "origin": [-8, 0, 7],
+              "size": [16, 16, 1],
+              "uv": {
+                "north": { "uv": [0, 0], "uv_size": [64, 64] },
+                "south": { "uv": [0, 0], "uv_size": [64, 64] },
+                "up": { "uv": [0, 0], "uv_size": [64, 4] },
+                "down": { "uv": [0, 0], "uv_size": [64, 4] },
+                "east": { "uv": [0, 0], "uv_size": [4, 64] },
+                "west": { "uv": [0, 0], "uv_size": [4, 64] }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

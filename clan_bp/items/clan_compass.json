@@ -1,0 +1,21 @@
+{
+  "format_version": "1.21.40",
+  "minecraft:item": {
+    "description": {
+      "identifier": "clan:clan_compass",
+      "menu_category": {
+        "category": "items"
+      }
+    },
+    "components": {
+      "minecraft:icon": "clan_compass",
+      "minecraft:display_name": {
+        "value": "Clan Menu"
+      },
+      "minecraft:max_stack_size": 1,
+      "minecraft:hand_equipped": false,
+      "minecraft:should_despawn": false,
+      "minecraft:foil": true
+    }
+  }
+}

@@ -1,0 +1,9 @@
+## Sigil — display names.
+## The behavior pack also sets these through minecraft:display_name; these
+## entries are the fallback and the place to translate from.
+
+tile.clan:war_map.name=War Map
+item.clan:clan_compass.name=Clan Menu
+
+pack.name=Sigil Resources
+pack.description=Textures for Sigil: the War Map block and the Clan Menu compass.

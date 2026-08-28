@@ -1,0 +1,11 @@
+{
+  "resource_pack_name": "clan_system",
+  "texture_name": "atlas.terrain",
+  "padding": 8,
+  "num_mip_levels": 4,
+  "texture_data": {
+    "clan_war_map": {
+      "textures": "textures/blocks/clan_war_map"
+    }
+  }
+}

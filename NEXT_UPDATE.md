@@ -1,0 +1,227 @@
+# Next Update
+
+Findings from the second full review that were **deliberately not fixed** in the
+round that closed items A, B and D. Nothing here is a known-broken feature;
+these are debts, unverified assumptions and expansions. Each entry says what was
+observed, why it was left, and what the fix looks like.
+
+Measurements were taken on the tree as it stands after the A/B/D round:
+23 modules, 10,081 lines of behaviour-pack script, 616 catalogue entries,
+357 checks passing, `tsc --noEmit` clean, both audits clean.
+
+---
+
+## C — Duplication and naming
+
+### C1. 46 duplicate strings in the catalogue
+
+`text.js` has 616 entries, of which 46 bodies appear more than once under
+different keys. This is fallout from the content-driven extraction: it keyed by
+call site, not by meaning, so the same sentence extracted from three files
+became three entries.
+
+The risk is drift. An admin who reworded "You are not in a clan." would find it
+still saying the old thing in two other menus.
+
+**Fix.** Group by body, keep the entry whose key reads best, repoint the other
+call sites, delete the losers. This is mechanical and safe to codemod — the
+bodies are identical, so no wording decision is involved. Add a rule to
+`tools/audit-text.mjs` that fails on a duplicate body so the condition cannot
+come back.
+
+### C2. Auto-generated key names
+
+The extraction slugged keys from the first five words, which produced names that
+describe the sentence rather than its role:
+
+    chatTagsActivePlayerChatnameprefix
+    morePageSOmittedThis
+    aLostClan
+    noClanAccess
+
+`morePageSOmittedThis` is the worst of them — the slug ran through a word
+boundary and capitalised mid-word. These are legible enough to work with, but
+they are not names anyone would have chosen, and a translator reading the
+catalogue alone gets no hint of context.
+
+**Fix.** Rename by hand, namespace by namespace, in one pass. Keys are
+referenced only as `TEXT.<ns>.<key>`, so a rename is a safe find-and-replace
+verified by `tsc`. Do C1 first — deduplicating removes ~46 names that would
+otherwise need renaming.
+
+### C3. Two copies of `notifyReviewers` and the manage-permission check
+
+- `notifyReviewers` at [commands.js:160](clan_bp/scripts/commands.js#L160) and
+  [ui.js:374](clan_bp/scripts/ui.js#L374)
+- `mayManage` at [commands.js:108](clan_bp/scripts/commands.js#L108) and
+  `mayManageClan` at [ui.js:200](clan_bp/scripts/ui.js#L200)
+
+These already drifted once. The reviewer-notice wording bug fixed last round
+existed because the rename notice was corrected in one copy and not the other,
+and the promotion path in one copy called `canApprove` where it needed
+`canApproveRequest`.
+
+**Fix.** Move both into the domain modules that own the concept —
+`notifyReviewers` into `requests.js` (it is a fact about a request, not about a
+menu), the permission predicate into `clans.js` beside `isOwner`. Both callers
+import it. This is the highest-value item in section C: it is the one that has
+already caused two real bugs.
+
+---
+
+## E — Test coverage
+
+### E1. 104 of 193 exported functions are never called from a test
+
+The suites are strong where they are pointed — wars has 140 checks — and absent
+elsewhere. Untested exports by module:
+
+| Module | Untested exports |
+| --- | --- |
+| `format.js` | 11 |
+| `ui.js` | 13 |
+| `wars.js` | 10 |
+| `clans.js` | 9 |
+| `storage.js` | 8 |
+| `requests.js` | 7 |
+| `compass.js`, `display.js` | 6 each |
+| `staff.js`, `invites.js` | 5 each |
+| everything else | 1–4 each |
+
+Not all of these are equally worth testing. Ranked by what would actually catch
+a bug:
+
+1. **`format.js` validators** (`validateClanName`, `validateRoleName`,
+   `validateStaffSymbol`, `sanitize`, `truncate`) — pure functions guarding
+   every name a player can type, and the cheapest tests in the project to
+   write. These should not have been skipped.
+2. **`storage.js`** (`setJsonGuarded`, `idsWithPrefix`, `remove`) — the
+   foundation everything else persists through, including the ~32KB
+   per-property ceiling that `setJsonGuarded` exists to enforce.
+3. **`clans.js` mutators** (`rename`, `deleteClanRole`, `refreshMemberName`) —
+   these write, so a regression loses data rather than misdrawing a menu.
+4. **`wars.js`** (`withdrawDeclaration`, `withdrawPeace`, `forfeitAllFor`,
+   `syncScoreboard`) — `forfeitAllFor` is the path item B2 just changed.
+5. `ui.js` menus and `display.js` render helpers — highest effort, lowest
+   yield, since the menu suite already covers the flows players actually walk.
+
+### E2. The `forms.js` warning path is untested
+
+`resolveValues` warns when `formValues.length` matches neither the slot count
+nor the input count — the case that means the runtime changed its convention
+under us. The mock can produce it (`__setSlotMode`), but no test asserts the
+warning fires or that the fallback still maps inputs in order. That branch is
+precisely the one nobody will notice breaking.
+
+### E3. Settings-cache invalidation is unverified
+
+`settings.invalidate()` is exported and never tested. The cache is read on
+nearly every display refresh, so a stale read after a settings change would show
+as "my colour change did nothing until I rejoined" — a bug report that would be
+very hard to trace back here.
+
+### E4. Announce wording is asserted loosely
+
+Several war tests assert that an announcement *fired* rather than what it said.
+The B2 fix changed which announcement fires for an unanswered declaration; a
+wording assertion would have caught the original behaviour earlier than review
+did.
+
+---
+
+## F — Structure
+
+### F1. `ui.js` is 3,291 lines
+
+A third of the behaviour pack in one file — the next largest is `commands.js` at
+1,024. It is navigable because the menus are ordered and commented, but it is
+the file most likely to collect a merge conflict and the one where C3's
+duplication grew in the first place.
+
+**Fix.** Split along the seams that already exist, one module per menu family:
+`ui/clan.js`, `ui/war.js`, `ui/staff.js`, `ui/settings.js`, `ui/peaceful.js`,
+with `ui.js` retained as the entry point that routes the root menu. Deferred
+because it touches every menu at once and the A/B/D round had already moved a
+lot of that code; doing both in one pass would have made review impossible.
+`tools/audit-imports.mjs` now guards the cycle risk that a split introduces.
+
+### F2. Identity signalling is inconsistent
+
+`clans.js` mutators signal `identityChanged` reliably. `staff.js` role changes
+and `peaceful.set` do not always, and `purge.js` needed an explicit
+`identityChanged(playerId)` appended last round to fix the "ghost" bug where a
+purged online player kept rendering their old clan.
+
+That fix was correct but local. The general problem is that signalling is a
+convention each mutator has to remember rather than something the design
+enforces.
+
+**Fix.** Make every mutator that can change a rendered identity route through a
+single helper that writes and signals, so forgetting is not possible. Audit the
+call sites first — this is a behavioural change, and the ghost bug shows the
+failure mode is silent.
+
+### F3. `text.js` has no regeneration path
+
+The catalogue was produced by a codemod in a scratch directory, not by anything
+committed. `tools/audit-text.mjs` can prove a string is *missing* from the
+catalogue, but nothing can regenerate or reformat it.
+
+**Fix.** Commit the extraction codemod under `tools/` alongside the audits, even
+though it is a one-shot. It is the only executable record of how the catalogue
+was built, and C1/C2 both want to run something like it again.
+
+---
+
+## G — Runtime assumptions not yet verified in-game
+
+Everything below type-checks against the published `.d.ts` and passes against
+the mocks. None of it has been observed in a running world. These are the items
+most likely to produce a surprise on first load, and they should be checked
+before the structural work in F, not after.
+
+1. **`ItemStack` dynamic properties surviving a drop and pickup.** The war map
+   and the compass carry their identity in dynamic properties. If those do not
+   survive the item-entity round trip, a dropped war map comes back blank. This
+   is the assumption most likely to be wrong and the one with no workaround
+   short of a redesign, so verify it first.
+2. **`Date` behaviour under the script runtime.** War records store timestamps
+   and the history is indefinite. The runtime's `Date` support and the world's
+   clock behaviour across a save and reload have not been confirmed.
+3. **The `minecraft:book` component on a `writable_book`.** `setContents` and
+   `signBook` are stable in 2.9.0 and the limits are documented (256 characters
+   per page, 50 pages, 16-character title), but the give-a-signed-book flow has
+   not been executed against the real component.
+4. **Block textures and the `minecraft:placement_position` trait.** The
+   painting-like placement of the war map, and whether the generated 64×64 and
+   32×32 textures read correctly at in-game scale. `tools/make-textures.mjs`
+   regenerates them, so iteration here is cheap.
+
+**Fix.** A single manual smoke pass in a test world, in the order above, with
+findings recorded back into `PLAN.md` under the limitations section.
+
+---
+
+## H — Logical expansions
+
+Not requested, not planned, recorded so the shape of the system is on paper.
+Roughly in order of value per unit of work.
+
+- **Clan alliances.** Wars already model a two-clan relationship with state and
+  history. A non-aggression or alliance relation reuses that machinery, and
+  would reuse the declaration and consent flow wholesale.
+- **A war leaderboard.** Kill totals per member already persist per war, and
+  `endedCountsByClan` already aggregates. An all-time standings board is mostly
+  a rendering job over data that exists.
+- **Clan banks or shared storage.** Frequently wanted alongside clans; entirely
+  new persistence, and the ~32KB per-property ceiling would need sharding as
+  `wars.js` does.
+- **Clan territory claims.** Would give outposts a spatial meaning beyond a
+  promotion tier. Large: needs chunk-level storage and a permission check on
+  block events, which is the first thing in this project that would run on a
+  hot path.
+- **Configurable war objectives** beyond kills — captures, duration,
+  structures. The scoreboard objective is already indirected through the
+  catalogue, so the rendering side is ready; the scoring side is not.
+- **An export or import path for clan data**, for server migration. Cheap,
+  useful to operators, and it would make G1 and G2 easier to test.
