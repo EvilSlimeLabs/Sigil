@@ -284,7 +284,7 @@ Every clan carries a `tier`, either `outpost` or `clan`. **New clans are always 
   applying "outposts cannot be drawn into a war", which is a worse outcome than
   a small clan keeping a rank it earned.
 - **Outposts cannot declare war, and cannot be declared upon.** The requirement states only that they cannot declare; being a legal *target* while unable to fight back would be a one-sided war, so they are excluded from both sides. This is a judgment call and is flagged as one.
-- Outposts render in grey rather than aqua, so the tier is visible at a glance without adding a second tag.
+- Outposts render in their own colour, distinct from the clan colour, so the tier is visible at a glance without adding a second tag. A clan that has chosen a colour of its own uses that instead, at either tier — the choice is the Leader's, and a clan that wants to be recognisable outranks a tier hint.
 
 ### Wars
 
@@ -533,6 +533,16 @@ Already per-clan and display-only, which is requirement 19. Leaders create them,
 
 Every colour in the display is a setting, chosen from a shared palette through the same dropdown wherever a colour applies: the clan tag, the role, the outpost tint, the Admin title, the Peaceful marker, and each staff role.
 
+The palette is all sixteen original formatting codes plus Bedrock's later material tones — Minecoin, Quartz, Iron, Netherite, Redstone, Copper, Gold Ore, Emerald, Diamond, Lapis, Amethyst and Resin. Only the code and a stable id live in `config.js`; the name a player reads is in the text catalogue, because `config.js` is imported by every module including the ones that run first and reaching for the catalogue from it would close an import cycle.
+
+**The clan colour belongs to the clan, not to the settings screen.** The add-on-wide clan and outpost colours are defaults; a Leader can set a colour on their own clan from **My Clan → Clan Colour**, stored on the clan record and applied to every member on both surfaces. It is deliberately one setting for the whole clan rather than per member: the point of a clan colour is that a clan is recognisable across a server, which per-member overrides would take away. Clearing it returns the clan to the default for its tier.
+
+**Button labels are re-coloured on the way out.** Form buttons are drawn on a light grey panel, and the palette above was chosen against the dark panel that bodies and chat use. Gray is the button's own colour and vanishes into it; the bright half of the palette washes out on it. `format.buttonText` maps every code in a label into the dark half, and the action-form builder in `forms.js` applies it to every button — which is what makes the rule hold for labels assembled at runtime from a clan name in a colour its Leader picked.
+
+### Where the name sits in chat
+
+The nametag draws its titles before the player's name and nothing after it, which is all the surface allows. Chat has two properties — `chatNamePrefix` and `chatNameSuffix` — so the player's **name carries an order of its own** in the same sequence as the system title, the clan tag and the Peaceful marker. A component numbered above the name is drawn after it. The default puts the name last at 30, so everything precedes it and the behaviour is what it always was; there is no separate before/after switch, because a second ordering scheme would have to be kept consistent with the first.
+
 
 ---
 
@@ -544,7 +554,7 @@ Typing `/clan:menu` on a controller means opening chat, navigating an on-screen 
 
 **The Clan Compass.** A custom item, `clan:clan_compass`. Using it opens the main menu — one button press, no typing, and every screen from there on is a form that a controller navigates natively.
 
-- It is given automatically on a player's first join, and `/clan:compass` replaces a lost one.
+- It is given automatically on a player's first join, and `/clan:compass` replaces a lost one — but only when the player is not already carrying one, since every copy opens the same menu and a second is only clutter.
 - It is purely a key to the UI: no crafting, no durability, no gameplay effect.
 - Its icon is a custom texture from the resource pack.
 
@@ -554,9 +564,14 @@ This is an addition to the command surface, not a replacement. Everything remain
 
 It is a block rather than an item because the requirement asks for something placed — a physical war map in a clan's base, which is a better fit for how clans actually play than a menu buried in an inventory.
 
+**Interaction goes through a custom block component**, `clan:war_map`, registered on `StartupEvent.blockComponentRegistry`. This is what makes the engine treat the block as interactive at all: `world.afterEvents.playerInteractWithBlock` fires only when a player *uses an item on* a block, so before the component existed the only interaction that reached the handler was a player holding a second War Map and trying to place it. The world event is kept as a fallback for a game that does not take the registration, and `warmap.js` discards whichever of the two arrives second within ten ticks.
+
+**It requires support, like a painting or an item frame.** Bedrock raises no neighbour-changed event for scripts, so the block carries `minecraft:tick` at a one-second interval and the component's `onTick` asks whether the surface it was placed against is still solid. Polling rather than reacting means the map also comes down when its wall is removed by a command, a piston or an explosion — cases a break handler would miss. An unloaded neighbour counts as present, so a chunk boundary never destroys a map.
+
 **It mounts to surfaces like a painting**, not as a full cube:
 
-- A **flat one-pixel panel** on a custom model, with **no collision box** — you walk through it, exactly as with a painting.
+- A **flat, zero-thickness panel** on a custom model, with **no collision box** — you walk through it, exactly as with a painting. A cube with a zero-length axis renders as a single quad drawn from both sides, which is what removes the four narrow side faces the earlier one-pixel box had: there is nothing on a torn-parchment texture that reads as the *edge* of a sheet, so whatever slice those faces were given looked wrong from every angle but head-on.
+- The panel is **15 pixels rather than 16** on each side, so it sits a hair inside its block and reads as an object placed on a surface rather than as the surface itself, and it is offset a fraction off that surface so the two planes cannot z-fight. Selection boxes stay at full block width: a target box slightly larger than the art is how paintings behave, and it keeps the boxes on integer bounds.
 - Placeable on the **top of a block** (lying flat on the floor) and on **all four walls** (hanging vertically). **Not on a ceiling**: `minecraft:placement_filter` allows `["up", "side"]` and omits `down`.
 - Orientation comes from the `minecraft:placement_position` trait's `minecraft:block_face` state, which records the face the player clicked. One permutation per wall direction swaps in the wall geometry and a Y rotation; the default (floor) permutation needs neither.
 - The rotation table — north `0`, south `180`, west `90`, east `-90` — is taken from Microsoft's own wall-torch example rather than derived, and the wall model is authored for the `north` case to match it. Getting a rotation sign wrong here puts the map inside the wall, and this is the one part of the pack that cannot be verified without launching the game.
@@ -564,7 +579,7 @@ It is a block rather than an item because the requirement asks for something pla
 
 ### Resource pack
 
-Adding custom art means a second pack, `clan_rp/`, which the behavior pack lists as a dependency so enabling one pulls in the other. It carries the War Map's model and texture, the Clan Compass icon, and the display-name strings. Both textures are generated from a committed script (`tools/make-textures.mjs`) rather than pasted in as binary, so the art is reviewable in a diff and regenerable. The map is **64×64** rather than the usual 16 so the torn edges, stains and markings have room to read; the compass is 32×32. Randomness runs through a seeded generator, so the output is byte-identical on every run.
+Adding custom art means a second pack, `clan_rp/`, which the behavior pack lists as a dependency so enabling one pulls in the other. It carries the War Map's model and texture, the Clan Compass icon, and the display-name strings. Both textures are generated from a committed script (`tools/make-textures.mjs`) rather than pasted in as binary, so the art is reviewable in a diff and regenerable. The map is **64×64** rather than the usual 16 so the torn edges, stains and markings have room to read; the compass is **16×16**, the resolution every vanilla item uses. The compass was 32×32 to begin with, and that was the single biggest reason it read as a foreign object in the hotbar — twice the detail of everything beside it, with gradients no vanilla item has. It also carried a ring of evenly spaced tick marks, which is what a clock face looks like rather than a compass; those are gone. Randomness runs through a seeded generator, so the output is byte-identical on every run.
 
 ---
 
@@ -575,8 +590,8 @@ All namespaced under `clan:` (Bedrock requires a namespace on custom commands). 
 | Command | Params | Who | Effect |
 |---|---|---|---|
 | `/clan:menu` | — | anyone | Opens the main UI. The primary interface. |
-| `/clan:create` | `name: String` | anyone not in a clan | Create a clan, or file a creation request when approval is required. Admins always create immediately. |
-| `/clan:compass` | — | anyone | Get a replacement Clan Compass. |
+| `/clan:create` | `name: String`, `player: PlayerSelector?` | anyone not in a clan; the optional player is admin-only | Create a clan, or file a creation request when approval is required. Admins always create immediately, and may name another player to found the clan for. A clan founded this way still starts as an outpost and is promoted the same way. |
+| `/clan:compass` | — | anyone | Get a replacement Clan Compass, unless one is already held. |
 | `/clan:warmap` | — | Leader of a full clan | Get a War Map block to place. |
 | `/clan:promote` | — | Leader of an outpost | Request promotion to a full clan. |
 | `/clan:war` | — | anyone in a clan | Open the war screen: declare, respond, view standings, end. |
@@ -615,11 +630,11 @@ All namespaced under `clan:` (Bedrock requires a namespace on custom commands). 
 
 | Hook | Purpose |
 |---|---|
-| `system.beforeEvents.startup` | Register all custom commands and enums. Nothing else — the world is not loaded yet. |
+| `system.beforeEvents.startup` | Register all custom commands and enums, and the War Map's block component. Nothing else — the world is not loaded yet. |
 | `world.afterEvents.playerSpawn` | On `initialSpawn`: refresh the name registry, reconcile the player's clan state, apply nametag and chat prefix, send a short welcome showing their identity, and notify them of any pending invites. |
 | `world.afterEvents.playerLeave` | Nothing persistent. Membership survives logout by design. |
 | `world.afterEvents.itemUse` | Opens the main menu when the used item is the Clan Compass. |
-| `world.afterEvents.playerInteractWithBlock` | Opens the war screen when the block is a War Map. |
+| `world.afterEvents.playerInteractWithBlock` | Fallback path to the war screen, for a game that did not take the block component. De-duplicated against it. |
 | `world.afterEvents.entityDie` | Credits a war kill when a clan member kills an opposing member of a clan they are at war with. |
 | `system.runInterval` (every 20 s) | Re-evaluate op status for online players and re-apply display when it changed. Bedrock fires no event for op grant or revoke, so admin status is polled. Cost is one enum read per online player. |
 
@@ -688,6 +703,7 @@ c:\dev\clan\
       warbook.js                renders a finished war into a signed book
       purge.js                  full removal of a player from the system
       compass.js                the Clan Compass and War Map items
+      warmap.js                 the placed War Map: interaction and support
       clans.js                  clan domain logic: CRUD, membership, roles
       invites.js                pending invites: issue, list, accept, decline
       requests.js               clan-creation requests: file, approve, deny

@@ -37,7 +37,7 @@ import * as requests from './requests.js';
 import * as announce from './announce.js';
 import * as players from './players.js';
 import * as display from './display.js';
-import { give as giveCompass, giveWarMap } from './compass.js';
+import { give as giveCompass, has as hasCompass, giveWarMap } from './compass.js';
 import * as wars from './wars.js';
 import * as warbook from './warbook.js';
 import * as peaceful from './peaceful.js';
@@ -124,8 +124,15 @@ function tellClan(clan, text) {
 /**
  * @param {Player} player
  * @param {string} name
+ * @param {unknown} [targetArg] a player to create the clan for, admins only
  */
-function handleCreate(player, name) {
+function handleCreate(player, name, targetArg) {
+  const target = firstPlayer(targetArg);
+  if (target && target.id !== player.id) {
+    createFor(player, target, name);
+    return;
+  }
+
   // Admins bypass review entirely; everyone else files a request when the
   // approval setting is on.
   if (requests.approvalRequiredFor(player)) {
@@ -150,6 +157,36 @@ function handleCreate(player, name) {
   }
   player.sendMessage(successMsg(TEXT.cmd.clanCreatedYouAreIts(result.value.name)));
   announce.clanCreated(result.value.name, player.name);
+}
+
+/**
+ * Creates a clan on someone else's behalf.
+ *
+ * An admin doing paperwork for a player is still founding an outpost, not
+ * handing out a full clan: `clans.createClan` starts every clan at the outpost
+ * tier, and promotion goes through the same request the player would have made
+ * themselves. The only thing being skipped is the creation review, which an
+ * admin is the reviewer for anyway.
+ *
+ * @param {Player} player the admin running the command
+ * @param {Player} target the player who will own the clan
+ * @param {string} name
+ */
+function createFor(player, target, name) {
+  if (!staff.isAdmin(player)) {
+    player.sendMessage(errorMsg(TEXT.cmd.onlyAdminsCreateForOthers));
+    return;
+  }
+
+  const result = clans.createClan(target.id, target.name, name);
+  if (!result.ok) {
+    player.sendMessage(errorMsg(result.error));
+    return;
+  }
+
+  player.sendMessage(successMsg(TEXT.cmd.createdTheOutpostFor(result.value.name, target.name)));
+  target.sendMessage(msg(TEXT.cmd.anAdminCreatedTheOutpost(result.value.name)));
+  announce.clanCreated(result.value.name, target.name);
 }
 
 /**
@@ -220,6 +257,14 @@ function handlePurge(player, targetArg) {
  * @param {Player} player
  */
 function handleCompass(player) {
+  // One compass per player. The menu it opens is the same menu whichever copy
+  // is held, so a second is only ever clutter — and asking for one is how a
+  // player who has misplaced theirs in a full inventory ends up with two.
+  if (hasCompass(player)) {
+    player.sendMessage(msg(TEXT.cmd.youAlreadyHaveAClanMenu));
+    return;
+  }
+
   if (giveCompass(player)) {
     player.sendMessage(successMsg(TEXT.cmd.hereIsYourClanMenu));
   } else {
@@ -951,6 +996,7 @@ export function register(registry) {
 
   add('create', TEXT.cmd.createAClanOrRequest, handleCreate, {
     mandatory: [{ type: P.String, name: 'name' }],
+    optional: [{ type: P.PlayerSelector, name: 'player' }],
   });
 
   add('invite', TEXT.cmd.inviteAPlayerToYour, handleInvite, {

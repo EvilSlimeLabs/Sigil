@@ -120,6 +120,7 @@ export class Player {
     // Present-but-undefined, mirroring a game build that supports the beta
     // chat property. Delete it to simulate a build that does not.
     this.chatNamePrefix = undefined;
+    this.chatNameSuffix = undefined;
     this.messages = [];
     this.container = new MockContainer();
   }

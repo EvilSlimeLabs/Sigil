@@ -1,5 +1,24 @@
 {
   "format_version": "1.16.0",
+  "_comment": [
+    "Two flat panels, not two boxes.",
+    "",
+    "The map used to be a one-pixel-thick cube, which meant its four narrow",
+    "sides had to be given a UV of their own. There is nothing on a torn",
+    "parchment texture that reads as the *edge* of a sheet, so whatever slice",
+    "they were given looked like a mistake from every angle but head-on.",
+    "",
+    "A cube with a zero-length axis renders as a single quad instead: the map",
+    "is a sheet with no thickness, drawn from both sides, and there are no side",
+    "faces left to mis-texture. Each panel is 15 pixels rather than 16, so it",
+    "sits a hair inside the block it occupies and reads as an object placed on",
+    "a surface rather than as the surface itself, and each is offset a fraction",
+    "off that surface so the two planes cannot z-fight.",
+    "",
+    "The four faces on the collapsed axis have zero area and cannot render, but",
+    "they are still given a UV so the model is complete rather than relying on a",
+    "partial per-face map being accepted."
+  ],
   "minecraft:geometry": [
     {
       "description": {
@@ -16,15 +35,15 @@
           "pivot": [0, 0, 0],
           "cubes": [
             {
-              "origin": [-8, 0, -8],
-              "size": [16, 1, 16],
+              "origin": [-7.5, 0.1, -7.5],
+              "size": [15, 0, 15],
               "uv": {
                 "up": { "uv": [0, 0], "uv_size": [64, 64] },
-                "down": { "uv": [0, 0], "uv_size": [64, 64] },
-                "north": { "uv": [0, 0], "uv_size": [64, 4] },
-                "south": { "uv": [0, 0], "uv_size": [64, 4] },
-                "east": { "uv": [0, 0], "uv_size": [64, 4] },
-                "west": { "uv": [0, 0], "uv_size": [64, 4] }
+                "down": { "uv": [0, 64], "uv_size": [64, -64] },
+                "north": { "uv": [0, 0], "uv_size": [1, 1] },
+                "south": { "uv": [0, 0], "uv_size": [1, 1] },
+                "east": { "uv": [0, 0], "uv_size": [1, 1] },
+                "west": { "uv": [0, 0], "uv_size": [1, 1] }
               }
             }
           ]
@@ -46,15 +65,15 @@
           "pivot": [0, 0, 0],
           "cubes": [
             {
-              "origin": [-8, 0, 7],
-              "size": [16, 16, 1],
+              "origin": [-7.5, 0.5, 7.9],
+              "size": [15, 15, 0],
               "uv": {
                 "north": { "uv": [0, 0], "uv_size": [64, 64] },
-                "south": { "uv": [0, 0], "uv_size": [64, 64] },
-                "up": { "uv": [0, 0], "uv_size": [64, 4] },
-                "down": { "uv": [0, 0], "uv_size": [64, 4] },
-                "east": { "uv": [0, 0], "uv_size": [4, 64] },
-                "west": { "uv": [0, 0], "uv_size": [4, 64] }
+                "south": { "uv": [64, 0], "uv_size": [-64, 64] },
+                "up": { "uv": [0, 0], "uv_size": [1, 1] },
+                "down": { "uv": [0, 0], "uv_size": [1, 1] },
+                "east": { "uv": [0, 0], "uv_size": [1, 1] },
+                "west": { "uv": [0, 0], "uv_size": [1, 1] }
               }
             }
           ]

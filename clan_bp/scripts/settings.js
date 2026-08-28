@@ -41,11 +41,16 @@ import { getJson, setJson } from './storage.js';
  */
 
 /**
+ * Chat is assembled around the player's name rather than only in front of it,
+ * so `nameOrder` is a real position in the same sequence as the rest: anything
+ * ordered below it is drawn before the name, anything above it after.
+ *
  * @typedef {object} ChatSettings
  * @property {boolean} showClanRole  default true
  * @property {number} systemOrder
  * @property {number} clanOrder
  * @property {number} peacefulOrder
+ * @property {number} nameOrder      where the player's own name sits
  */
 
 /**
@@ -66,6 +71,10 @@ import { getJson, setJson } from './storage.js';
  */
 
 /**
+ * The default colours a clan's identity is drawn in. A clan whose Leader has
+ * chosen a colour of its own overrides `clan` for that clan only; these are
+ * what every clan that has not chosen still uses.
+ *
  * @typedef {object} ColorSettings
  * @property {string} clan
  * @property {string} role
@@ -140,14 +149,21 @@ const DEFAULTS = {
     chat: {
       showClanRole: true,
       // The system title sits at the very start of the message; Peaceful comes
-      // after every other title but still before the name.
+      // after every other title but still before the name. The name is last of
+      // the four by default, so nothing is drawn after it until an admin moves
+      // something past it.
       systemOrder: 0,
       clanOrder: 10,
       peacefulOrder: 20,
+      nameOrder: 30,
     },
     admin: { symbol: '✦', name: 'Admin', color: C.red, showAs: 'symbol' },
     peaceful: { symbol: '☮', name: 'Peaceful', color: C.green, showAs: 'symbol', visibility: 'both' },
-    colors: { clan: C.aqua, role: C.gray, outpost: C.gray },
+    // Three colours that read apart from each other at a glance and none of
+    // which is the grey the chat window itself uses. The outpost tone is
+    // deliberately unlike the clan tone: the tier should be visible without
+    // reading the word.
+    colors: { clan: C.green, role: C.aqua, outpost: C.purple },
   },
   notifications: {
     enabled: true,

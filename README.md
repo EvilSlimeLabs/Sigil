@@ -34,20 +34,22 @@ Everything else — clans, wars, invites, roles, approvals, settings, nametags a
 
 ### The Clan Menu compass
 
-Every player is given a **Clan Menu** compass on their first join. Using it opens the menu — the whole system is reachable from there without typing anything, which is the point on a controller. Lost it? `/clan:compass`.
+Every player is given a **Clan Menu** compass on their first join. Using it opens the menu — the whole system is reachable from there without typing anything, which is the point on a controller. Lost it? `/clan:compass`. One is the limit: the command checks your inventory first and tells you so rather than handing out a second.
 
 ### The War Map
 
-A clan Leader gets one with `/clan:warmap`, puts it up in their base, and interacts with it to declare war, answer declarations, check standings, or end a war.
+A clan Leader gets one with `/clan:warmap`, puts it up in their base, and right-clicks it to declare war, answer declarations, check standings, or end a war. It is the only way into the war screen apart from `/clan:war` — the compass menu deliberately does not repeat it, so the map is a thing you go to rather than decoration.
 
-It mounts to surfaces like a painting rather than sitting there as a full cube: a flat panel you can walk through, placeable **on the floor or on any wall, but not on a ceiling**. On a wall it hangs facing you; on the floor it lies flat, like a chart spread on a table.
+It mounts to surfaces like a painting rather than sitting there as a full cube: a flat panel you can walk through, placeable **on the floor or on any wall, but not on a ceiling**. On a wall it hangs facing you; on the floor it lies flat, like a chart spread on a table. It is drawn a pixel shy of a full block on each side, so it reads as an object resting on a surface rather than as the surface itself.
+
+**It needs something to hang on.** Break the wall or floor behind a placed map and it comes down and drops itself, the way a painting or an item frame does.
 
 ### Everyday commands
 
 | Command | What it does |
 |---|---|
 | `/clan:menu` | Open the menu |
-| `/clan:create <name>` | Create an outpost, or request one if approval is required |
+| `/clan:create <name> [player]` | Create an outpost, or request one if approval is required. Admins may name a player to create it for |
 | `/clan:invite <player>` | Invite someone — they must accept |
 | `/clan:invites` | See your pending invites |
 | `/clan:accept [clan]` | Accept an invite |
@@ -66,7 +68,7 @@ It mounts to surfaces like a painting rather than sitting there as a full cube: 
 | `/clan:disband` | Delete your clan |
 | `/clan:info [player]` | Show clan details |
 | `/clan:list` | List every clan |
-| `/clan:compass` | Get a replacement menu compass |
+| `/clan:compass` | Get a replacement menu compass — refused if you already have one |
 
 `/clan:accept` and `/clan:deny` take no argument when only one invite is pending.
 
@@ -81,6 +83,7 @@ It mounts to surfaces like a painting rather than sitting there as a full cube: 
 | `/clan:staff` | Admins — create and assign staff roles |
 | `/clan:settings` | Admins — approval, notifications, wars, polling |
 | `/clan:display` | Admins — nametag and chat layout, titles, colours |
+| `/clan:create <name> <player>` | Admins — found an outpost on another player's behalf |
 | `/clan:purge <player>` | Admins — erase a player from the system |
 | `/clan:status` | Admins — diagnostics |
 
@@ -88,9 +91,9 @@ It mounts to surfaces like a painting rather than sitting there as a full cube: 
 
 ## Outposts and clans
 
-Every new clan starts as an **Outpost**. To become a full clan it needs **5 members** including the Leader (an admin setting) and then a **promotion request**, which admins — and Mods by default — approve.
+Every new clan starts as an **Outpost**. To become a full clan it needs **5 members** including the Leader (an admin setting) and then a **promotion request**, which admins — and Mods by default — approve. A clan an admin founds for someone with `/clan:create <name> <player>` is no exception: it starts as an outpost and is promoted the same way.
 
-Outposts show in grey rather than aqua, and **cannot declare or be drawn into wars**. The requirement only says they cannot declare; letting them be declared *upon* would mean a war they cannot fight, so they are excluded from both sides.
+Outposts show in the outpost colour rather than the clan colour, and **cannot declare or be drawn into wars**. The requirement only says they cannot declare; letting them be declared *upon* would mean a war they cannot fight, so they are excluded from both sides.
 
 ---
 
@@ -178,6 +181,7 @@ A correction made with `/clan:warkills` can **name a player**, in which case it 
 
 - Show or hide the clan role — default **shown**
 - Where the system title, clan tag and Peaceful marker sit
+- Where the **player's own name** sits. The name has an order like everything else, so a tag numbered above it is drawn **after** the name rather than before it. By default the name is last and everything precedes it.
 
 **Titles**
 
@@ -185,9 +189,11 @@ A correction made with `/clan:warkills` can **name a player**, in which case it 
 - The same for the Peaceful role, plus whether it appears in the nametag, chat, both or neither
 - Each staff role carries its own symbol, name, colour and show-as
 
-**Colours** are picked from a shared palette wherever a colour applies — clan, role, outpost tint, Admin, Peaceful, and each staff role.
+**Colours** are picked from a shared palette wherever a colour applies — clan, role, outpost tint, Admin, Peaceful, and each staff role. The palette is all sixteen original formatting colours plus Bedrock's material tones — Minecoin, Quartz, Iron, Netherite, Redstone, Copper, Gold Ore, Emerald, Diamond, Lapis, Amethyst and Resin.
 
-Defaults produce `✦ Steve` above the head with `Wolves` beneath, and `✦ [Wolves|Leader] Steve: hello` in chat.
+The clan, role and outpost colours set here are **defaults**. A Leader can give their own clan a colour from **My Clan → Clan Colour**, which applies to every member of that clan, on nametags and in chat, and overrides the default until it is cleared. It is one setting for the whole clan — members cannot colour themselves.
+
+Defaults produce `✦ Steve` above the head with `Wolves` beneath, and `✦ [Wolves|Leader] Steve: hello` in chat, with the clan in green, roles in aqua and outposts in purple.
 
 ---
 
@@ -240,7 +246,7 @@ npm test
 
 They cover the clan lifecycle and permissions, the menu layer's permission gates, the exact composition of the nametag and chat prefix, the settings, approval and purge behaviour, and outposts, wars and kill attribution.
 
-Both textures are generated by a script rather than committed as opaque binaries, so the art can be reviewed in a diff and regenerated. The map is 64×64 so its torn edges and markings have room to read; the compass is 32×32. The generator is seeded, so output is identical on every run:
+Both textures are generated by a script rather than committed as opaque binaries, so the art can be reviewed in a diff and regenerated. The map is 64×64 so its torn edges and markings have room to read; the compass is 16×16, the resolution every vanilla item uses, because an item at twice the detail of everything beside it in the hotbar reads as a foreign object. The generator is seeded, so output is identical on every run:
 
 ```bash
 node tools/make-textures.mjs

@@ -39,7 +39,12 @@
       "minecraft:destructible_by_explosion": {
         "explosion_resistance": 1
       },
-      "minecraft:light_dampening": 0
+      "minecraft:light_dampening": 0,
+      "minecraft:tick": {
+        "interval_range": [20, 20],
+        "looping": true
+      },
+      "minecraft:custom_components": ["clan:war_map"]
     },
     "permutations": [
       {

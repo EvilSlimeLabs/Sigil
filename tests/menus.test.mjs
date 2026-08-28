@@ -101,7 +101,9 @@ function screen(shownForms, titleFragment) {
 // ── The main menu offers what each role may actually do ───────────────────
 const leaderMenu = buttonsOf((await open(() => ui.mainMenu(leader)))[0]);
 check('a leader sees their clan', leaderMenu.some((b) => b.includes('My Clan')));
-check('a leader sees the war map', leaderMenu.some((b) => b.includes('War Map')));
+// Wars are reached through the War Map block and `/clan:war`, never from the
+// compass menu — repeating them here made the placed block look decorative.
+check('a leader is offered no war entry', !leaderMenu.some((b) => b.includes('War Map')));
 check('a leader sees no staff tools', !leaderMenu.some((b) => b.includes('Manage Clans')));
 check('a leader sees no admin tools', !leaderMenu.some((b) => b.includes('Settings')));
 
@@ -122,6 +124,53 @@ check('an admin sees staff roles', adminMenu.some((b) => b.includes('Staff Roles
 check('an admin sees settings', adminMenu.some((b) => b.includes('Settings')));
 check('an admin sees display settings', adminMenu.some((b) => b.includes('Display Settings')));
 check('an admin can purge', adminMenu.some((b) => b.includes('Purge')));
+check(
+  'an admin can found a clan for someone else',
+  adminMenu.some((b) => b.includes('Create a Clan for a Player')),
+);
+check('the settings screen is not called a clan setting', !adminMenu.some((b) => b === 'Clan Settings'));
+
+// ── Back buttons exist only where there is somewhere to go back to ────────
+//
+// A screen opened from the compass menu is told its way home and shows a Back
+// button; the same screen opened from a command or the War Map block is not,
+// because there is no parent to return to.
+const fromCompass = await open(() => {
+  ui2.__answers('My Clan');
+  ui.mainMenu(leader);
+});
+const clanFromCompass = buttonsOf(screen(fromCompass, 'Wolves'));
+check('a screen reached from the compass offers Back', clanFromCompass.includes('Back'));
+
+const direct = buttonsOf((await open(() => ui.myClanMenu(leader)))[0]);
+check('the same screen reached directly does not', !direct.includes('Back'));
+
+// ── A Leader sets the clan colour; nobody else does ───────────────────────
+check('a leader is offered the clan colour', direct.some((b) => b.includes('Clan Colour')));
+const asMember = buttonsOf((await open(() => ui.myClanMenu(member)))[0]);
+check('an ordinary member is not', !asMember.some((b) => b.includes('Clan Colour')));
+
+const colourScreen = await open(() => {
+  ui2.__answers('Clan Colour', { color: 6 });
+  ui.myClanMenu(leader);
+});
+check(
+  'the colour screen offers the whole palette plus a default',
+  (screen(colourScreen, 'Clan Colour')?.inputs ?? []).length === 1,
+);
+// Index 6 in the dropdown: the placeholder default sits at 0, so the palette
+// runs from 1 and aqua is the sixth entry.
+checkEqual('choosing one stores it on the clan', clans.getClan(wolves.id).color, '§b');
+
+await open(() => {
+  ui2.__answers('Clan Colour', { color: 0 });
+  ui.myClanMenu(leader);
+});
+checkEqual(
+  'and the placeholder clears it again',
+  clans.getClan(wolves.id).color,
+  undefined,
+);
 
 // ── Member actions are gated by who is looking ────────────────────────────
 const asStranger = await open(() => {
@@ -179,10 +228,11 @@ check('an admin may adjust kills', buttonsOf(detail).some((b) => b.includes('Adj
 check('an admin is offered no surrender', !buttonsOf(detail).some((b) => b.includes('Surrender')));
 check('an admin is offered no peace', !buttonsOf(detail).some((b) => b.includes('Peace')));
 
-// A belligerent Leader gets the opposite set.
+// A belligerent Leader gets the opposite set, reached from the war screen the
+// War Map block opens.
 const leaderWar = await open(() => {
-  ui2.__answers('War Map', 'Our Wars', 0);
-  ui.mainMenu(leader);
+  ui2.__answers('Our Wars', 0);
+  ui.warMenu(leader);
 });
 const leaderDetail = screen(leaderWar, '1st War');
 check('a leader may surrender', buttonsOf(leaderDetail).some((b) => b.includes('Surrender')));
@@ -325,13 +375,18 @@ check('a long list asks for a search term first', search !== undefined);
 
 const roster1 = listScreen(paged, 'Members');
 check('the list itself is shown', roster1 !== undefined);
-check('a long roster is capped at one page', buttonsOf(roster1).length <= 41);
+// Forty rows, then Next page, then Back: this screen was opened from the
+// compass menu, so it has somewhere to go back to.
+const navigation = (b) => b.includes('page') || b === 'Back';
+check('a long roster is capped at one page', buttonsOf(roster1).length <= 42);
 check('and offers a next page', buttonsOf(roster1).some((b) => b.includes('Next page')));
 check('but no previous page on the first', !buttonsOf(roster1).some((b) => b.includes('Previous')));
+check('and a way back out of the list', buttonsOf(roster1).includes('Back'));
 check('the page count is shown', roster1.body.includes('Page 1 of'));
 
-// Paging buttons sit after the items, so an item's index never shifts.
-const itemButtons = buttonsOf(roster1).filter((b) => !b.includes('page'));
+// Paging and navigation buttons sit after the items, so an item's index never
+// shifts under someone part-way through reading the page.
+const itemButtons = buttonsOf(roster1).filter((b) => !navigation(b));
 checkEqual(
   'paging buttons come last',
   buttonsOf(roster1).slice(0, itemButtons.length).join('|'),
@@ -355,7 +410,12 @@ const searched = await open(() => {
 });
 const narrowed = listScreen(searched, 'Members');
 check('searching narrows the list', buttonsOf(narrowed).length < 41);
-check('and every row matches', buttonsOf(narrowed).every((b) => b.includes('Recruit9')));
+check(
+  'and every row matches',
+  buttonsOf(narrowed)
+    .filter((b) => !navigation(b))
+    .every((b) => b.includes('Recruit9')),
+);
 
 clans.disband(bigClan.id);
 mock.__setPlayers(roster);

@@ -10,7 +10,8 @@
  * impossible on stable, and the requirement cannot be met without beta.
  *
  * The beta surface used is the smallest one that does the job:
- * `Player.chatNamePrefix`, a single additive property. It is preferred over
+ * `Player.chatNamePrefix` and `Player.chatNameSuffix`, two additive properties.
+ * They are preferred over
  * `world.beforeEvents.chatSend` because that route means cancelling the real
  * chat message and re-broadcasting a replacement, which throws away native
  * chat behaviour and breaks chat outright if the handler ever fails. A missing
@@ -33,6 +34,11 @@
  * configurable order. Building both from one list is what keeps "before the
  * name in the nametag, at the very start in chat" from drifting into two
  * unrelated pieces of formatting code.
+ *
+ * In chat the player's own name carries an order too, so the sequence has a
+ * reference point rather than an implicit "everything goes in front". A
+ * component ordered past the name is drawn after it, which is the only way a
+ * tag can sit on the far side of the name without a second ordering scheme.
  */
 
 import { world, system } from '@minecraft/server';
@@ -130,6 +136,26 @@ function assemble(parts) {
 }
 
 /**
+ * Splits ordered components either side of a reference position.
+ *
+ * The chat line is built around the player's name rather than merely in front
+ * of it, so the name has an order of its own and every other component is
+ * before or after it depending on which side of that number it falls. A
+ * component sharing the name's order is drawn before it, which keeps the
+ * default — everything in front — from depending on an exact tie-break.
+ *
+ * @param {Array<{ order: number, text: string }>} parts
+ * @param {number} at the reference component's order
+ * @returns {{ before: string, after: string }}
+ */
+function assembleAround(parts, at) {
+  return {
+    before: assemble(parts.filter((part) => part.order <= at)),
+    after: assemble(parts.filter((part) => part.order > at)),
+  };
+}
+
+/**
  * The clan line drawn under the player's name: the clan, and the role when it
  * is switched on, in the configured order and bracket styles.
  *
@@ -141,9 +167,10 @@ function nameTagClanLine(playerId) {
   if (!clan) return '';
 
   const { nametag, colors } = settings.get().display;
-  // Outposts read in the outpost colour, so the tier shows without spending a
-  // whole component on it.
-  const clanColor = clans.isOutpost(clan) ? colors.outpost : colors.clan;
+  // The clan's own colour if its Leader picked one; otherwise the default for
+  // its tier, so an outpost reads as an outpost without spending a whole
+  // component on saying so.
+  const clanColor = clans.colorOf(clan, colors);
   const clanPart = wrap(clan.name, nametag.clanBrackets, C.darkGray, clanColor);
 
   const role = clans.roleOf(clan, playerId);
@@ -168,18 +195,19 @@ function nameTagTitles(player) {
 }
 
 /**
- * Everything that precedes the player's name in chat.
+ * The chat components either side of the player's name, already spaced and
+ * terminated so they can be handed straight to the game.
  *
  * @param {Player} player
- * @returns {string}
+ * @returns {{ before: string, after: string }}
  */
-export function chatPrefixFor(player) {
+function chatPartsFor(player) {
   const { chat, colors } = settings.get().display;
 
   let clanPart = '';
   const clan = clans.clanOf(player.id);
   if (clan) {
-    const clanColor = clans.isOutpost(clan) ? colors.outpost : colors.clan;
+    const clanColor = clans.colorOf(clan, colors);
     const role = clans.roleOf(clan, player.id);
     const inner =
       chat.showClanRole && role !== ''
@@ -188,13 +216,42 @@ export function chatPrefixFor(player) {
     clanPart = `${C.darkGray}[${inner}${C.darkGray}]`;
   }
 
-  const assembled = assemble([
-    { order: chat.systemOrder, text: systemTitle(player) },
-    { order: chat.clanOrder, text: clanPart },
-    { order: chat.peacefulOrder, text: peacefulMark(player, 'chat') },
-  ]);
+  const { before, after } = assembleAround(
+    [
+      { order: chat.systemOrder, text: systemTitle(player) },
+      { order: chat.clanOrder, text: clanPart },
+      { order: chat.peacefulOrder, text: peacefulMark(player, 'chat') },
+    ],
+    chat.nameOrder,
+  );
 
-  return assembled === '' ? '' : `${assembled} ${C.reset}`;
+  return {
+    // The trailing reset stops a tag's colour bleeding onto the name; the
+    // leading space on the suffix separates it from the name it follows.
+    before: before === '' ? '' : `${before} ${C.reset}`,
+    after: after === '' ? '' : ` ${after}${C.reset}`,
+  };
+}
+
+/**
+ * Everything that precedes the player's name in chat.
+ *
+ * @param {Player} player
+ * @returns {string}
+ */
+export function chatPrefixFor(player) {
+  return chatPartsFor(player).before;
+}
+
+/**
+ * Everything drawn after the player's name in chat — empty unless an admin has
+ * ordered a component past the name.
+ *
+ * @param {Player} player
+ * @returns {string}
+ */
+export function chatSuffixFor(player) {
+  return chatPartsFor(player).after;
 }
 
 /**
@@ -204,7 +261,8 @@ export function chatPrefixFor(player) {
  * @returns {string}
  */
 export function identityLine(player) {
-  return `${chatPrefixFor(player)}${C.white}${player.name}`;
+  const { before, after } = chatPartsFor(player);
+  return `${before}${C.white}${player.name}${after}`;
 }
 
 /**
@@ -242,17 +300,18 @@ function ensureChatMode(player) {
 }
 
 /**
- * Applies the chat prefix, if the running game supports one.
+ * Applies the chat name decoration, if the running game supports it.
  *
  * @param {Player} player
  */
-function applyChatPrefix(player) {
+function applyChatName(player) {
   ensureChatMode(player);
   if (chatMode !== 'property') return;
 
-  const prefix = chatPrefixFor(player);
-  // Clearing the prefix is an explicit `undefined`, not an empty string.
-  player.chatNamePrefix = prefix === '' ? undefined : prefix;
+  const { before, after } = chatPartsFor(player);
+  // Clearing either side is an explicit `undefined`, not an empty string.
+  player.chatNamePrefix = before === '' ? undefined : before;
+  player.chatNameSuffix = after === '' ? undefined : after;
 }
 
 /**
@@ -268,11 +327,13 @@ function subscribeChatFallback() {
   if (!('chatSend' in beforeEvents)) return false;
 
   world.beforeEvents.chatSend.subscribe((event) => {
-    const prefix = chatPrefixFor(event.sender);
-    if (prefix === '') return; // Nothing to add; leave the native message alone.
+    const { before, after } = chatPartsFor(event.sender);
+    if (before === '' && after === '') return; // Leave the native message alone.
 
     event.cancel = true;
-    const line = `${prefix}${C.white}${event.sender.name}${C.gray}: ${C.reset}${event.message}`;
+    const line =
+      `${before}${C.white}${event.sender.name}${after}` +
+      `${C.gray}: ${C.reset}${event.message}`;
     // A before-event handler runs in restricted-execution mode, so the
     // replacement has to be sent from the next tick rather than inline.
     system.run(() => world.sendMessage(line));
@@ -288,7 +349,7 @@ function subscribeChatFallback() {
 export function refresh(player) {
   try {
     applyNameTag(player);
-    applyChatPrefix(player);
+    applyChatName(player);
     lastAdminState.set(player.id, staff.isAdmin(player));
   } catch (err) {
     console.warn(`[sigil] could not refresh display for ${player.name}: ${err}`);

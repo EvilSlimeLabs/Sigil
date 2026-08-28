@@ -9,7 +9,6 @@
  */
 
 import { system, world, Player } from '@minecraft/server';
-import { WAR_MAP_BLOCK } from './config.js';
 import { msg } from './format.js';
 import { initSchema } from './storage.js';
 import * as playersRegistry from './players.js';
@@ -23,6 +22,7 @@ import * as commands from './commands.js';
 import * as ui from './ui.js';
 import * as compass from './compass.js';
 import * as warbook from './warbook.js';
+import * as warmap from './warmap.js';
 import { TEXT } from './text.js';
 
 let worldReady = false;
@@ -102,9 +102,13 @@ function onJoin(player) {
   }
 }
 
-// Commands are described before the world loads; they read no state here.
+// Commands and block components are both described before the world loads;
+// neither reads state here. The War Map's component is what makes the placed
+// block interactive at all, so it has to be registered in this window or not
+// at all.
 system.beforeEvents.startup.subscribe((event) => {
   commands.register(event.customCommandRegistry);
+  warmap.register(event.blockComponentRegistry);
 });
 
 world.afterEvents.playerSpawn.subscribe((event) => {
@@ -128,6 +132,7 @@ world.afterEvents.playerSpawn.subscribe((event) => {
 
 world.afterEvents.playerLeave.subscribe((event) => {
   display.forget(event.playerId);
+  warmap.forget(event.playerId);
 });
 
 // The Clan Compass: one button press instead of typing a namespaced command,
@@ -148,16 +153,11 @@ world.afterEvents.itemUse.subscribe((event) => {
   }
 });
 
-// The War Map: a placed block a clan interacts with to run its wars.
-world.afterEvents.playerInteractWithBlock.subscribe((event) => {
-  if (event.block.typeId !== WAR_MAP_BLOCK) return;
-  // The event fires twice for a single press on some inputs; only the first
-  // should open a screen, or the form is immediately replaced by a duplicate.
-  if (!event.isFirstEvent) return;
-
-  const player = event.player;
-  system.run(() => ui.warMenu(player));
-});
+// The War Map: a placed block a clan interacts with to run its wars. The block
+// component registered above is the path that works with an empty hand; this
+// is the fallback for a game that did not take it, and `warmap.js` throws away
+// whichever of the two arrives second.
+warmap.subscribeFallback();
 
 // War kills. Only a credited player-versus-player kill between two clans that
 // are at war with each other counts — `wars.recordKill` is what decides, and it

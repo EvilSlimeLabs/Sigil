@@ -1,15 +1,6 @@
 # Next Update
 
-Findings from the second full review that were **deliberately not fixed** in the
-round that closed items A, B and D. Nothing here is a known-broken feature;
-these are debts, unverified assumptions and expansions. Each entry says what was
-observed, why it was left, and what the fix looks like.
 
-Measurements were taken on the tree as it stands after the A/B/D round:
-23 modules, 10,081 lines of behaviour-pack script, 616 catalogue entries,
-357 checks passing, `tsc --noEmit` clean, both audits clean.
-
----
 
 ## C — Duplication and naming
 
@@ -131,10 +122,10 @@ did.
 
 ## F — Structure
 
-### F1. `ui.js` is 3,291 lines
+### F1. `ui.js` is over 3,000 lines
 
-A third of the behaviour pack in one file — the next largest is `commands.js` at
-1,024. It is navigable because the menus are ordered and commented, but it is
+A third of the behaviour pack in one file — the next largest is `commands.js`,
+at roughly a third its size. It is navigable because the menus are ordered and commented, but it is
 the file most likely to collect a merge conflict and the one where C3's
 duplication grew in the first place.
 
@@ -194,8 +185,33 @@ before the structural work in F, not after.
    not been executed against the real component.
 4. **Block textures and the `minecraft:placement_position` trait.** The
    painting-like placement of the war map, and whether the generated 64×64 and
-   32×32 textures read correctly at in-game scale. `tools/make-textures.mjs`
+   16×16 textures read correctly at in-game scale. `tools/make-textures.mjs`
    regenerates them, so iteration here is cheap.
+5. **The War Map's custom block component.** `minecraft:custom_components` is
+   the form valid at the block's declared `format_version` of 1.21.40, and it
+   is the form this pack uses — but Microsoft's Scripting V2 documentation
+   describes it as deprecated in favour of naming the component directly inside
+   `components`, and this pack is on Scripting V2. Whether a 1.21.40 block file
+   still gets its component registered under a 1.26 engine is the single
+   assumption here with no way to check it short of loading the pack. The
+   failure is not silent: the world event fallback in `warmap.js` keeps the war
+   screen reachable with an item in hand, so what would be lost is the empty-
+   hand interaction and the support check. If the smoke pass shows the
+   registration did not take, the fix is to move the declaration into
+   `components` and raise the block's `format_version`.
+6. **Zero-thickness geometry.** The war map's two panels are cubes with a
+   zero-length axis, which is the standard way to draw a flat decal and renders
+   as a single double-sided quad. Worth confirming it is not culled, and that
+   the fractional offset off the mounting surface is enough to stop z-fighting
+   without the panel visibly floating.
+7. **`Player.chatNameSuffix`.** The chat components ordered past the player's
+   name are written to it. It sits beside `chatNamePrefix` in the same beta
+   API, so it is very likely present wherever the prefix is, but only the
+   prefix has ever been exercised.
+8. **The material colour codes.** `§g` and `§h`–`§v` are Bedrock-only additions
+   and are now offered in the colour dropdown. A code the running game does not
+   know renders as literal text rather than colour, which would be visible
+   immediately in the dropdown itself.
 
 **Fix.** A single manual smoke pass in a test world, in the order above, with
 findings recorded back into `PLAN.md` under the limitations section.

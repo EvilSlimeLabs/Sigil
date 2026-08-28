@@ -8,9 +8,9 @@
 // every run — a texture that changed every build would make diffs useless.
 //
 //   clan_war_map.png   64x64  a torn, stained campaign map
-//   clan_compass.png   32x32  a brass compass with a red north needle
+//   clan_compass.png   16x16  an iron compass with a red north needle
 
-import { writePng, canvas, set, get, opaque, clear, shade, line, disc, triangle, rng } from './pixels.mjs';
+import { writePng, canvas, set, opaque, clear, shade, line, disc, triangle, rng } from './pixels.mjs';
 
 // ── The war map ───────────────────────────────────────────────────────────
 
@@ -254,72 +254,91 @@ function makeWarMap() {
 }
 
 // ── The compass ───────────────────────────────────────────────────────────
+//
+// Drawn at 16x16, the resolution every vanilla item uses. The first attempt was
+// 32x32, which is the single biggest reason it read as a foreign object beside
+// the rest of the hotbar: twice the detail of everything around it, with
+// gradients and highlights no vanilla item has.
+//
+// It also lost the tick marks. A ring of evenly spaced marks around a dial is
+// what a clock face looks like; the vanilla compass has none, and neither does
+// this one now. What is left is what actually says "compass": an iron ring, a
+// dark dial recessed inside it, and a two-tone needle with red at the north
+// end. Four colours of iron and three of dial, which is about the palette
+// budget a vanilla item works to.
 
 const COMPASS = {
-  rimDark: [92, 66, 26],
-  rimBrass: [186, 146, 62],
-  rimLight: [226, 194, 108],
-  face: [232, 224, 202],
-  faceShade: [206, 196, 172],
-  tick: [64, 56, 44],
-  needleRed: [190, 46, 42],
-  needleGrey: [78, 84, 96],
-  pin: [48, 42, 34],
+  outline: [42, 39, 35],
+  ironLight: [198, 198, 198],
+  iron: [158, 158, 158],
+  ironShade: [112, 112, 112],
+  dialRim: [58, 54, 49],
+  dial: [78, 74, 66],
+  dialLight: [96, 92, 83],
+  needleRed: [188, 52, 46],
+  needleWhite: [228, 226, 220],
+  pin: [34, 32, 28],
 };
 
 function makeCompass() {
-  const S = 32;
+  const S = 16;
   const c = canvas(S, S);
-  const cx = 15.5;
-  const cy = 15.5;
+  const cx = 7.5;
+  const cy = 7.5;
 
-  // Brass housing, then the dial recessed inside it.
-  disc(c, cx, cy, 14.6, COMPASS.rimDark);
-  disc(c, cx, cy, 13.4, COMPASS.rimBrass);
-  disc(c, cx, cy, 11.6, COMPASS.rimDark);
-  disc(c, cx, cy, 10.8, COMPASS.face);
+  // The body: a dark outline with the iron ring inside it, so the silhouette
+  // stays crisp against a bright inventory slot.
+  disc(c, cx, cy, 7.4, COMPASS.outline);
+  disc(c, cx, cy, 6.5, COMPASS.iron);
 
-  // A highlight on the upper-left of the rim, so it reads as metal.
-  for (let a = 190; a <= 250; a += 3) {
-    const r = (a * Math.PI) / 180;
-    set(c, Math.round(cx + Math.cos(r) * 13), Math.round(cy + Math.sin(r) * 13), COMPASS.rimLight);
-    set(c, Math.round(cx + Math.cos(r) * 12.2), Math.round(cy + Math.sin(r) * 12.2), COMPASS.rimLight);
-  }
-
-  // Shading in the lower-right of the dial gives the face some depth.
+  // One light source, upper left, expressed as two flat bands rather than a
+  // gradient — the way vanilla shades a round item.
   for (let y = 0; y < S; y++) {
     for (let x = 0; x < S; x++) {
       const d = Math.hypot(x - cx, y - cy);
-      if (d > 7.5 && d < 10.8 && x + y > 34) set(c, x, y, COMPASS.faceShade);
+      if (d > 6.5 || d < 3.6) continue;
+      const diagonal = x + y;
+      if (diagonal < 13) set(c, x, y, COMPASS.ironLight);
+      else if (diagonal > 17) set(c, x, y, COMPASS.ironShade);
     }
   }
 
-  // Cardinal ticks.
-  for (const [dx, dy] of [
-    [0, -1],
-    [0, 1],
-    [-1, 0],
-    [1, 0],
-  ]) {
-    for (let r = 8; r <= 10; r++) {
-      set(c, Math.round(cx + dx * r), Math.round(cy + dy * r), COMPASS.tick);
+  // The dial, recessed: a dark rim, then the face, then a lit upper-left edge
+  // so it reads as sunk into the housing rather than painted on it.
+  disc(c, cx, cy, 4.3, COMPASS.dialRim);
+  disc(c, cx, cy, 3.5, COMPASS.dial);
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const d = Math.hypot(x - cx, y - cy);
+      if (d <= 3.5 && d > 2.4 && x + y < 14) set(c, x, y, COMPASS.dialLight);
     }
   }
-  // Intercardinal ticks, one pixel each.
-  for (const [dx, dy] of [
-    [-1, -1],
-    [1, -1],
-    [-1, 1],
-    [1, 1],
-  ]) {
-    const r = 9.5 / Math.SQRT2;
-    set(c, Math.round(cx + dx * r), Math.round(cy + dy * r), COMPASS.tick);
-  }
 
-  // The needle: red to the north, grey to the south, pinned at the centre.
-  triangle(c, [cx, cy - 9.5], [cx - 2.2, cy + 0.5], [cx + 2.2, cy + 0.5], COMPASS.needleRed);
-  triangle(c, [cx, cy + 9.5], [cx - 2.2, cy - 0.5], [cx + 2.2, cy - 0.5], COMPASS.needleGrey);
-  disc(c, cx, cy, 1.2, COMPASS.pin);
+  // The needle, placed pixel by pixel rather than rasterised from a shape.
+  //
+  // At sixteen pixels a triangle narrow enough to fit the dial rounds down to a
+  // single column, which is a line and not a needle. Two columns for the shaft
+  // and four at the shoulders is the smallest arrangement that still reads as
+  // one — and it is the same trick the vanilla texture uses, because there is
+  // no other way to draw a taper this small.
+  const shaft = [7, 8];
+  const shoulder = [6, 7, 8, 9];
+  for (const [row, columns, rgb] of [
+    [4, shaft, COMPASS.needleRed],
+    [5, shaft, COMPASS.needleRed],
+    [6, shaft, COMPASS.needleRed],
+    [7, shoulder, COMPASS.needleRed],
+    [8, shoulder, COMPASS.needleWhite],
+    [9, shaft, COMPASS.needleWhite],
+    [10, shaft, COMPASS.needleWhite],
+    [11, shaft, COMPASS.needleWhite],
+  ]) {
+    for (const column of columns) set(c, column, row, rgb);
+  }
+  // The hub: the two pixels where the halves meet, darkened so the needle
+  // reads as pivoting rather than as one solid bar.
+  set(c, 7, 7, COMPASS.pin);
+  set(c, 8, 8, COMPASS.pin);
 
   return c;
 }

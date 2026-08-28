@@ -25,6 +25,7 @@ prepare([
 ]);
 
 const mock = await load('mock-server.js');
+const format = await load('format.js');
 const storage = await load('storage.js');
 const playersMod = await load('players.js');
 const settings = await load('settings.js');
@@ -180,16 +181,54 @@ staff.assignRole(plainPlayer.id, undefined);
 
 // ── Colours are settings, and the tier picks which one applies ────────────
 check('the clan is still an outpost', clans.isOutpost(clans.getClan(wolves.id)));
-check('an outpost uses the outpost colour', display.chatPrefixFor(member).includes('§7Wolves'));
+check('an outpost uses the outpost colour', display.chatPrefixFor(member).includes('§5Wolves'));
 
 settings.update({ display: { colors: { outpost: '§8' } } });
 check('the outpost colour is a setting', display.chatPrefixFor(member).includes('§8Wolves'));
 
 clans.promote(wolves.id);
-check('a promoted clan uses the clan colour', display.chatPrefixFor(member).includes('§bWolves'));
+check('a promoted clan uses the clan colour', display.chatPrefixFor(member).includes('§aWolves'));
 settings.update({ display: { colors: { clan: '§d' } } });
 check('the clan colour is a setting', display.chatPrefixFor(member).includes('§dWolves'));
+
+// ── A clan's own colour overrides the default, for every member ───────────
+clans.setColor(wolves.id, '§6');
+check('a clan colour overrides the default', display.chatPrefixFor(member).includes('§6Wolves'));
+settings.update({ display: { colors: { clan: '§b' } } });
+check(
+  'and keeps overriding it after the default changes',
+  display.chatPrefixFor(member).includes('§6Wolves'),
+);
+check('a colour outside the palette is refused', !clans.setColor(wolves.id, '§z').ok);
+check(
+  'and the clan keeps the colour it had',
+  display.chatPrefixFor(member).includes('§6Wolves'),
+);
+clans.setColor(wolves.id, '');
+check(
+  'clearing it returns the clan to the default',
+  display.chatPrefixFor(member).includes('§bWolves'),
+);
 settings.update({ display: { colors: { clan: '§b', outpost: '§7' } } });
+
+// ── The name has a position, so a tag can sit after it ────────────────────
+checkEqual('nothing follows the name by default', plain(display.chatSuffixFor(member)), '');
+check('and the clan tag is in front of it', plain(display.chatPrefixFor(member)).includes('[Wolves]'));
+
+// Ordering the name before the clan tag moves the tag to the other side of it.
+settings.update({ display: { chat: { nameOrder: 5 } } });
+check('the clan tag can be moved past the name', plain(display.chatSuffixFor(member)).includes('[Wolves]'));
+check('and is gone from in front of it', !plain(display.chatPrefixFor(member)).includes('[Wolves]'));
+const reordered = plain(display.identityLine(member));
+check(
+  'the identity line keeps the system title in front',
+  reordered.indexOf('Mod') < reordered.indexOf('Alex'),
+);
+check('and puts the clan tag after the name', reordered.indexOf('[Wolves]') > reordered.indexOf('Alex'));
+
+settings.update({ display: { chat: { nameOrder: 30 } } });
+checkEqual('and moving the name back restores it', plain(display.chatSuffixFor(member)), '');
+check('with the tag in front again', plain(display.chatPrefixFor(member)).includes('[Wolves]'));
 
 // ── Op changes are picked up by polling ───────────────────────────────────
 peaceful.set(admin.id, false);
@@ -210,5 +249,50 @@ staff.assignRole(member.id, undefined);
 clans.removeMember(wolves.id, member.id);
 checkEqual('the nametag reverts when a member leaves', plain(member.nameTag), 'Alex');
 checkEqual('and so does the chat prefix', plain(member.chatNamePrefix), 'undefined');
+
+// ── Button labels are re-coloured for the panel they sit on ───────────────
+//
+// Gray is the button's own colour, so a subtitle drawn in it is invisible; the
+// bright half of the palette washes out on it. Both are mapped into the dark
+// half, and nothing that was already dark is touched.
+checkEqual('gray becomes dark gray on a button', format.buttonText('§7detail'), '§8detail');
+checkEqual('white becomes black', format.buttonText('§fName'), '§0Name');
+checkEqual('aqua becomes dark aqua', format.buttonText('§bWolves'), '§3Wolves');
+checkEqual('red becomes dark red', format.buttonText('§cDisband'), '§4Disband');
+checkEqual('a colour that was already dark is left alone', format.buttonText('§8x§4y'), '§8x§4y');
+checkEqual(
+  'every code in a multi-line label is mapped',
+  format.buttonText('§bWolves\n§74 members'),
+  '§3Wolves\n§84 members',
+);
+checkEqual('an uncoloured label is unchanged', format.buttonText('Back'), 'Back');
+
+// ── Labels are broken to fit the panel ────────────────────────────────────
+//
+// The sentence that overflowed is the one asserted here. Width is counted in
+// visible characters, so a coloured label is not punished for its codes.
+const overflow = 'Lower numbers are drawn first, before the player name.';
+const wrapped = format.wrapText(overflow);
+check('an over-long label is broken', wrapped.includes('\n'));
+check(
+  'and every line fits the width',
+  wrapped.split('\n').every((line) => plain(line).length <= 34),
+);
+checkEqual('the words survive the break', plain(wrapped).replace(/\n/g, ' '), overflow);
+checkEqual('a short label is left on one line', format.wrapText('Colour'), 'Colour');
+checkEqual(
+  'formatting codes do not count towards the width',
+  format.wrapText('§7' + 'a'.repeat(34)),
+  '§7' + 'a'.repeat(34),
+);
+check(
+  'the colour in force carries onto the next line',
+  format.wrapText('§7' + 'word '.repeat(10), 20).split('\n')[1].startsWith('§7'),
+);
+checkEqual(
+  'a caller\u2019s own line breaks are kept',
+  format.wrapText('one\ntwo'),
+  'one\ntwo',
+);
 
 finish();

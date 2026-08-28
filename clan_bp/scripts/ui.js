@@ -12,9 +12,8 @@
  * behave like a navigable stack rather than a set of dead ends.
  */
 
-import { ActionFormData } from '@minecraft/server-ui';
 import { world } from '@minecraft/server';
-import { showAction as show, modal } from './forms.js';
+import { action, showAction as show, modal } from './forms.js';
 import { C, LEADER_ROLE, LIMITS, ROLE_COLOR_CHOICES } from './config.js';
 import { BRACKET_STYLES, bracketIndex } from './brackets.js';
 import {
@@ -67,7 +66,7 @@ function run(player, screen) {
  * @returns {Promise<boolean>}
  */
 async function confirm(player, title, body, confirmLabel) {
-  const form = new ActionFormData()
+  const form = action()
     .title(title)
     .body(body)
     .button(`${C.red}${confirmLabel}`)
@@ -99,9 +98,11 @@ const PICKER_PAGE_SIZE = 40;
  * @param {T[]} options.items
  * @param {(item: T) => string} options.describe  the button label
  * @param {(item: T) => string} [options.match]   text a search term is tested against
+ * @param {() => void} [options.back]  where leaving the list goes; adds a Back
+ *   button and is also taken when the screen is simply closed
  * @returns {Promise<T | undefined>}
  */
-async function pickFrom(player, { title, body, items, describe, match }) {
+async function pickFrom(player, { title, body, items, describe, match, back }) {
   let list = items;
 
   if (match && list.length > PICKER_SEARCH_THRESHOLD) {
@@ -111,12 +112,16 @@ async function pickFrom(player, { title, body, items, describe, match }) {
       .submitButton(TEXT.menu.pickerSearchSubmit)
       .show(player);
 
-    if (search.canceled) return undefined;
+    if (search.canceled) {
+      back?.();
+      return undefined;
+    }
     const query = search.str('query').trim().toLowerCase();
     if (query !== '') {
       list = list.filter((item) => match(item).toLowerCase().includes(query));
       if (list.length === 0) {
         player.sendMessage(errorMsg(TEXT.menu.pickerNoMatch(query)));
+        back?.();
         return undefined;
       }
     }
@@ -128,25 +133,43 @@ async function pickFrom(player, { title, body, items, describe, match }) {
     page = Math.min(page, pages - 1);
     const slice = list.slice(page * PICKER_PAGE_SIZE, (page + 1) * PICKER_PAGE_SIZE);
 
-    const form = new ActionFormData()
+    const form = action()
       .title(title)
       .body(pages > 1 ? TEXT.menu.pickerPageOf(body, page + 1, pages, list.length) : body);
     for (const item of slice) form.button(describe(item));
 
-    // Paging buttons come last, so an item's index never shifts under someone
-    // part-way through reading the page.
-    const back = pages > 1 && page > 0;
-    const forward = pages > 1 && page < pages - 1;
-    if (back) form.button(TEXT.menu.pickerPrevious);
-    if (forward) form.button(TEXT.menu.pickerNext);
+    // Paging and navigation buttons come last, so an item's index never shifts
+    // under someone part-way through reading the page.
+    const hasPrevious = pages > 1 && page > 0;
+    const hasNext = pages > 1 && page < pages - 1;
+    if (hasPrevious) form.button(TEXT.menu.pickerPrevious);
+    if (hasNext) form.button(TEXT.menu.pickerNext);
+    if (back) form.button(TEXT.menu.back);
 
     const response = await show(form, player);
-    if (response.canceled || response.selection === undefined) return undefined;
+    if (response.canceled || response.selection === undefined) {
+      back?.();
+      return undefined;
+    }
 
     if (response.selection < slice.length) return slice[response.selection];
-    const offset = response.selection - slice.length;
-    if (back && offset === 0) page -= 1;
-    else page += 1;
+
+    let offset = response.selection - slice.length;
+    if (hasPrevious) {
+      if (offset === 0) {
+        page -= 1;
+        continue;
+      }
+      offset -= 1;
+    }
+    if (hasNext && offset === 0) {
+      page += 1;
+      continue;
+    }
+
+    // Only the Back button is left.
+    back?.();
+    return undefined;
   }
 }
 
@@ -159,9 +182,10 @@ async function pickFrom(player, { title, body, items, describe, match }) {
  * @param {string} options.body
  * @param {Array<{ id: string, name: string, online: boolean }>} options.candidates
  * @param {(entry: { id: string, name: string, online: boolean }) => string} options.describe
+ * @param {() => void} [options.back]
  * @returns {Promise<{ id: string, name: string, online: boolean } | undefined>}
  */
-async function pickPlayer(player, { title, body, candidates, describe }) {
+async function pickPlayer(player, { title, body, candidates, describe, back }) {
   // Online players first: they are who a picker is usually reaching for.
   const list = [...candidates].sort(
     (a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name),
@@ -171,6 +195,7 @@ async function pickPlayer(player, { title, body, candidates, describe }) {
     body,
     items: list,
     describe,
+    back,
     match: (/** @type {{ name: string }} */ ref) => ref.name,
   });
 }
@@ -228,7 +253,7 @@ export function mainMenu(player) {
     const clan = clans.clanOf(player.id);
     const pending = invites.pendingFor(player.id);
 
-    const form = new ActionFormData().title(TEXT.menu.clans);
+    const form = action().title(TEXT.menu.clans);
     form.body(
       clan
         ? TEXT.menu.youAreInAs(clan.name, clans.roleOf(clan, player.id) || 'a member')
@@ -238,9 +263,15 @@ export function mainMenu(player) {
     /** @type {Array<() => void>} */
     const actions = [];
 
+    // Every screen opened from here is told how to get back, which is what
+    // puts a Back button on it. Screens reached any other way — from the War
+    // Map block, from a command — are given no route and show none, because
+    // there is nowhere for it to go.
+    const home = () => mainMenu(player);
+
     if (clan) {
       form.button(TEXT.menu.myClan(clan.name));
-      actions.push(() => myClanMenu(player));
+      actions.push(() => myClanMenu(player, home));
     } else {
       form.button(TEXT.menu.createAClan);
       actions.push(() => createClanForm(player));
@@ -251,20 +282,14 @@ export function mainMenu(player) {
         ? TEXT.menu.invitesPending(pending.length)
         : TEXT.menu.invitesNonePending,
     );
-    actions.push(() => invitesMenu(player));
+    actions.push(() => invitesMenu(player, home));
 
-    if (clan) {
-      const live = wars.warsFor(clan.id);
-      form.button(
-        live.length > 0
-          ? TEXT.menu.warMapWarS(live.length)
-          : TEXT.menu.warMapDeclareAndTrack,
-      );
-      actions.push(() => warMenu(player));
-    }
+    // No war entry here. The war screen belongs to the War Map a clan puts up
+    // in its base — that block, and `/clan:war`, are the ways in. Repeating it
+    // in the compass menu made the map look like decoration.
 
     form.button(TEXT.menu.browseClans);
-    actions.push(() => browseClans(player));
+    actions.push(() => browseClans(player, home));
 
     if (requests.canApprove(player)) {
       const queued = requests.all().length;
@@ -273,12 +298,12 @@ export function mainMenu(player) {
           ? TEXT.menu.clanRequestsAwaitingReview(queued)
           : TEXT.menu.clanRequestsQueueIsEmpty,
       );
-      actions.push(() => requestQueue(player));
+      actions.push(() => requestQueue(player, home));
     }
 
     if (staff.canManageAnyClan(player)) {
       form.button(TEXT.menu.manageClansStaff);
-      actions.push(() => staffClanBrowser(player));
+      actions.push(() => staffClanBrowser(player, home));
 
       const liveCount = wars.liveWars().length;
       form.button(
@@ -286,21 +311,24 @@ export function mainMenu(player) {
           ? TEXT.menu.activeWarsInProgress(liveCount)
           : TEXT.menu.activeWarsNone,
       );
-      actions.push(() => staffWarBrowser(player));
+      actions.push(() => staffWarBrowser(player, home));
     }
 
     if (staff.canManageStaffRoles(player)) {
       form.button(TEXT.menu.staffRolesAdmin);
-      actions.push(() => staffRoleMenu(player));
+      actions.push(() => staffRoleMenu(player, home));
 
       form.button(TEXT.menu.settingsAdmin);
       actions.push(() => settingsMenu(player));
 
       form.button(TEXT.menu.displaySettingsAdmin);
-      actions.push(() => displaySettingsMenu(player));
+      actions.push(() => displaySettingsMenu(player, home));
+
+      form.button(TEXT.menu.createForAPlayerAdmin);
+      actions.push(() => createClanForPlayer(player, home));
 
       form.button(TEXT.menu.purgeAPlayerAdmin);
-      actions.push(() => purgePicker(player));
+      actions.push(() => purgePicker(player, home));
 
       const marked = peaceful.all().length;
       form.button(
@@ -363,6 +391,75 @@ function createClanForm(player) {
     player.sendMessage(successMsg(TEXT.menu.clanCreatedYouAreIts(result.value.name)));
     announce.clanCreated(result.value.name, player.name);
     myClanMenu(player);
+  });
+}
+
+/**
+ * Founds a clan on another player's behalf. Admin only.
+ *
+ * Servers end up doing this: a player cannot type the command, or wants the
+ * clan set up before they log in for the first time on a new season. What an
+ * admin is skipping is the creation review — which they are the reviewer for
+ * anyway — and nothing else. The clan starts as an outpost and is promoted the
+ * same way every other clan is, so this is not a way to hand out a full clan.
+ *
+ * @param {Player} player the admin doing it
+ * @param {() => void} [back]
+ */
+function createClanForPlayer(player, back) {
+  run(player, async () => {
+    if (!staff.isAdmin(player)) {
+      player.sendMessage(errorMsg(TEXT.cmd.onlyAdminsCreateForOthers));
+      back?.();
+      return;
+    }
+
+    // Everyone on record, not only the online: the case this exists for is
+    // often a player who is not here.
+    const candidates = players.allKnown().filter((ref) => !clans.clanOf(ref.id));
+    if (candidates.length === 0) {
+      player.sendMessage(msg(TEXT.menu.noPlayersOnRecordYet));
+      back?.();
+      return;
+    }
+
+    const target = await pickPlayer(player, {
+      back,
+      title: TEXT.menu.createForATitle,
+      body: TEXT.menu.createForABody,
+      candidates,
+      describe: (ref) => `${onlineDot(ref)} ${C.white}${truncate(ref.name, 20)}`,
+    });
+    if (!target) return;
+
+    const response = await modal(TEXT.menu.createForATitle)
+      .label(TEXT.menu.createForABody)
+      .textField(
+        'name',
+        TEXT.menu.createForANameLabel(target.name),
+        'Wolves',
+      )
+      .submitButton(TEXT.menu.create)
+      .show(player);
+
+    if (response.canceled) {
+      createClanForPlayer(player, back);
+      return;
+    }
+
+    const result = clans.createClan(target.id, target.name, response.str('name'));
+    if (!result.ok) {
+      player.sendMessage(errorMsg(result.error));
+      createClanForPlayer(player, back);
+      return;
+    }
+
+    player.sendMessage(
+      successMsg(TEXT.cmd.createdTheOutpostFor(result.value.name, target.name)),
+    );
+    players.notify(target.id, msg(TEXT.cmd.anAdminCreatedTheOutpost(result.value.name)));
+    announce.clanCreated(result.value.name, target.name);
+    back?.();
   });
 }
 
@@ -451,8 +548,9 @@ function renameClanForm(player, clanId) {
 
 /**
  * @param {Player} player
+ * @param {() => void} [back]
  */
-export function myClanMenu(player) {
+export function myClanMenu(player, back) {
   run(player, async () => {
     const clan = clans.clanOf(player.id);
     if (!clan) {
@@ -467,7 +565,7 @@ export function myClanMenu(player) {
       ? `${C.gray}Tier: ${C.gray}Outpost${C.gray} (${clans.memberCount(clan)}/${threshold} to promote)`
       : TEXT.menu.tierFullClan;
 
-    const form = new ActionFormData()
+    const form = action()
       .title(`${C.aqua}${truncate(clan.name, 24)}`)
       .body(
         TEXT.menu.membersLeaderYourRole(tierLine, clans.memberCount(clan), LIMITS.maxMembersPerClan, players.displayName(clan.ownerId), clans.roleOf(clan, player.id) || TEXT.fragment.noRole),
@@ -476,8 +574,10 @@ export function myClanMenu(player) {
     /** @type {Array<() => void>} */
     const actions = [];
 
+    const home = () => myClanMenu(player, back);
+
     form.button(TEXT.menu.membersViewAndManage);
-    actions.push(() => memberBrowser(player, clan.id));
+    actions.push(() => memberBrowser(player, clan.id, home));
 
     if (owner && outpost) {
       form.button(TEXT.menu.requestPromotionBecomeAFull);
@@ -488,11 +588,20 @@ export function myClanMenu(player) {
       form.button(TEXT.menu.renameClan);
       actions.push(() => renameClanForm(player, clan.id));
 
+      const colors = settings.get().display.colors;
+      form.button(
+        TEXT.menu.clanColour(
+          clans.colorOf(clan, colors),
+          clan.color ? clan.name : TEXT.menu.clanColourUsingDefault,
+        ),
+      );
+      actions.push(() => clanColorForm(player, clan.id, home));
+
       form.button(TEXT.menu.inviteAPlayer);
       actions.push(() => invitePicker(player, clan.id));
 
       form.button(TEXT.menu.clanRolesDefined(clan.roles.length));
-      actions.push(() => clanRolesMenu(player, clan.id));
+      actions.push(() => clanRolesMenu(player, clan.id, home));
 
       form.button(TEXT.menu.transferLeadership);
       actions.push(() => transferPicker(player, clan.id));
@@ -504,9 +613,64 @@ export function myClanMenu(player) {
       actions.push(() => leaveFlow(player, clan.id));
     }
 
+    if (back) {
+      form.button(TEXT.menu.back);
+      actions.push(back);
+    }
+
     const response = await show(form, player);
     if (response.canceled || response.selection === undefined) return;
     actions[response.selection]?.();
+  });
+}
+
+/**
+ * Sets the colour every member of a clan is drawn in.
+ *
+ * The Leader's choice, not each member's: a clan colour is a way to recognise
+ * the clan across a server, which per-member overrides would take away. The
+ * add-on-wide colour in the display settings is only the default this starts
+ * from, and clearing the choice here returns the clan to it.
+ *
+ * @param {Player} player
+ * @param {string} clanId
+ * @param {() => void} [back]
+ */
+function clanColorForm(player, clanId, back) {
+  run(player, async () => {
+    const clan = clans.getClan(clanId);
+    if (!clan) {
+      player.sendMessage(errorMsg(TEXT.common.clanGone));
+      return;
+    }
+    if (!mayManageClan(player, clan)) {
+      player.sendMessage(errorMsg(TEXT.menu.notClanLeaderColour));
+      back?.();
+      return;
+    }
+
+    // The palette with an extra first entry standing for "no choice", so
+    // clearing the colour is a normal selection rather than a second control.
+    const choices = [TEXT.menu.clanColourDefault, ...colorOptions()];
+    const current = clan.color ? colorIndex(clan.color) + 1 : 0;
+
+    const response = await modal(TEXT.menu.clanColourTitle)
+      .label(TEXT.menu.clanColourBody)
+      .dropdown('color', TEXT.menu.clanColourPick, choices, { defaultValueIndex: current })
+      .submitButton(TEXT.menu.save)
+      .show(player);
+
+    if (response.canceled) {
+      back?.();
+      return;
+    }
+
+    const picked = response.num('color');
+    const result = clans.setColor(clanId, picked === 0 ? '' : colorAt(picked - 1));
+    player.sendMessage(
+      result.ok ? successMsg(TEXT.menu.clanColourUpdated) : errorMsg(result.error),
+    );
+    back?.();
   });
 }
 
@@ -530,12 +694,10 @@ export function memberBrowser(player, clanId, back) {
       items: rows,
       describe: (row) => memberLabel(clan, row),
       match: (row) => row.member.name,
+      back,
     });
 
-    if (!chosen) {
-      back?.();
-      return;
-    }
+    if (!chosen) return;
     memberActions(player, clan.id, chosen.id, back);
   });
 }
@@ -563,7 +725,7 @@ function memberActions(player, clanId, memberId, back) {
     const isTargetOwner = clans.isOwner(clan, memberId);
     const returnHere = () => memberBrowser(player, clanId, back);
 
-    const form = new ActionFormData()
+    const form = action()
       .title(`${C.white}${truncate(member.name, 24)}`)
       .body(
         TEXT.menu.clanRoleStatus(clan.name, clans.roleOf(clan, memberId) || TEXT.fragment.noRole, players.onlinePlayer(memberId) ? `${C.green}${TEXT.fragment.online}` : `${C.darkGray}${TEXT.fragment.offline}`),
@@ -894,31 +1056,36 @@ function invitePicker(player, clanId) {
 
 /**
  * @param {Player} player
+ * @param {() => void} [back]
  */
-export function invitesMenu(player) {
+export function invitesMenu(player, back) {
+  const leave = back ?? (() => mainMenu(player));
+
   run(player, async () => {
     const pending = invites.pendingFor(player.id);
     if (pending.length === 0) {
       player.sendMessage(msg(TEXT.menu.youHaveNoPendingClan));
-      mainMenu(player);
+      leave();
       return;
     }
 
-    const form = new ActionFormData()
+    const form = action()
       .title(TEXT.menu.clanInvites)
       .body(TEXT.menu.youHavePendingInviteS(pending.length));
     for (const invite of pending) {
       form.button(TEXT.menu.from(truncate(invite.clanName, 20), invite.byName));
     }
+    form.button(TEXT.menu.back);
 
     const response = await show(form, player);
     if (response.canceled || response.selection === undefined) {
-      mainMenu(player);
+      leave();
       return;
     }
 
     const chosen = pending[response.selection];
     if (chosen) respondToInvite(player, chosen);
+    else leave();
   });
 }
 
@@ -928,7 +1095,7 @@ export function invitesMenu(player) {
  */
 function respondToInvite(player, invite) {
   run(player, async () => {
-    const form = new ActionFormData()
+    const form = action()
       .title(`${C.aqua}${truncate(invite.clanName, 24)}`)
       .body(TEXT.menu.invitedYouToJoin(invite.byName, invite.clanName))
       .button(TEXT.menu.accept)
@@ -972,13 +1139,16 @@ function respondToInvite(player, invite) {
 /**
  * @param {Player} player
  * @param {string} clanId
+ * @param {() => void} [back]
  */
-function clanRolesMenu(player, clanId) {
+function clanRolesMenu(player, clanId, back) {
+  const leave = back ?? (() => myClanMenu(player));
+
   run(player, async () => {
     const clan = clans.getClan(clanId);
     if (!clan) return;
 
-    const form = new ActionFormData()
+    const form = action()
       .title(TEXT.menu.clanRoles)
       .body(
         TEXT.menu.rolesAreOptionalLabelsFor,
@@ -988,10 +1158,11 @@ function clanRolesMenu(player, clanId) {
       const holders = Object.values(clan.members).filter((m) => m.role === role).length;
       form.button(TEXT.menu.memberS(truncate(role, 20), holders));
     }
+    form.button(TEXT.menu.back);
 
     const response = await show(form, player);
     if (response.canceled || response.selection === undefined) {
-      myClanMenu(player);
+      leave();
       return;
     }
 
@@ -1002,6 +1173,7 @@ function clanRolesMenu(player, clanId) {
 
     const role = clan.roles[response.selection - 1];
     if (role) deleteClanRoleFlow(player, clanId, role);
+    else leave();
   });
 }
 
@@ -1060,17 +1232,21 @@ function deleteClanRoleFlow(player, clanId, role) {
 
 /**
  * @param {Player} player
+ * @param {() => void} [back]
  */
-export function browseClans(player) {
+export function browseClans(player, back) {
+  const leave = back ?? (() => mainMenu(player));
+
   run(player, async () => {
     const all = clans.allClans();
     if (all.length === 0) {
       player.sendMessage(msg(TEXT.menu.noClansExistYet));
-      mainMenu(player);
+      leave();
       return;
     }
 
     const chosen = await pickFrom(player, {
+      back: leave,
       title: TEXT.menu.clans2,
       body: TEXT.menu.clanS(all.length),
       items: all,
@@ -1083,11 +1259,8 @@ export function browseClans(player) {
       match: (clan) => clan.name,
     });
 
-    if (!chosen) {
-      mainMenu(player);
-      return;
-    }
-    memberBrowser(player, chosen.id, () => browseClans(player));
+    if (!chosen) return;
+    memberBrowser(player, chosen.id, () => browseClans(player, back));
   });
 }
 
@@ -1098,8 +1271,9 @@ export function browseClans(player) {
  * role with clan-management access.
  *
  * @param {Player} player
+ * @param {() => void} [back]
  */
-export function staffClanBrowser(player) {
+export function staffClanBrowser(player, back) {
   run(player, async () => {
     if (!staff.canManageAnyClan(player)) {
       player.sendMessage(errorMsg(TEXT.common.notClanManager));
@@ -1109,10 +1283,12 @@ export function staffClanBrowser(player) {
     const all = clans.allClans();
     if (all.length === 0) {
       player.sendMessage(msg(TEXT.menu.noClansExistYet));
+      back?.();
       return;
     }
 
     const chosen = await pickFrom(player, {
+      back,
       title: TEXT.menu.manageClans,
       body: TEXT.menu.selectAClanToManage,
       items: all,
@@ -1125,15 +1301,16 @@ export function staffClanBrowser(player) {
       match: (clan) => clan.name,
     });
 
-    if (chosen) staffClanDetail(player, chosen.id);
+    if (chosen) staffClanDetail(player, chosen.id, back);
   });
 }
 
 /**
  * @param {Player} player
  * @param {string} clanId
+ * @param {() => void} [fromBrowser] where the browser this was opened from goes
  */
-function staffClanDetail(player, clanId) {
+function staffClanDetail(player, clanId, fromBrowser) {
   run(player, async () => {
     const clan = clans.getClan(clanId);
     if (!clan) {
@@ -1141,8 +1318,8 @@ function staffClanDetail(player, clanId) {
       return;
     }
 
-    const back = () => staffClanBrowser(player);
-    const form = new ActionFormData()
+    const back = () => staffClanBrowser(player, fromBrowser);
+    const form = action()
       .title(`${C.gold}${truncate(clan.name, 22)}`)
       .body(
         TEXT.menu.leaderMembers(players.displayName(clan.ownerId), clans.memberCount(clan)),
@@ -1158,7 +1335,7 @@ function staffClanDetail(player, clanId) {
     }
 
     if (response.selection === 0) {
-      memberBrowser(player, clanId, () => staffClanDetail(player, clanId));
+      memberBrowser(player, clanId, () => staffClanDetail(player, clanId, fromBrowser));
     } else if (response.selection === 1) {
       clanWarHistory(player, clanId);
     } else {
@@ -1171,8 +1348,9 @@ function staffClanDetail(player, clanId) {
 
 /**
  * @param {Player} player
+ * @param {() => void} [back]
  */
-export function staffRoleMenu(player) {
+export function staffRoleMenu(player, back) {
   run(player, async () => {
     if (!staff.canManageStaffRoles(player)) {
       player.sendMessage(errorMsg(TEXT.common.notAdminStaffRoles));
@@ -1180,7 +1358,7 @@ export function staffRoleMenu(player) {
     }
 
     const roles = staff.allRoles();
-    const form = new ActionFormData()
+    const form = action()
       .title(TEXT.menu.staffRoles)
       .body(
         TEXT.menu.staffRolesAreSeparateFrom,
@@ -1196,9 +1374,13 @@ export function staffRoleMenu(player) {
           `${C.gray}${role.manageClans ? TEXT.menu.managesClans : TEXT.menu.noClanAccess}`,
       );
     }
+    if (back) form.button(TEXT.menu.back);
 
     const response = await show(form, player);
-    if (response.canceled || response.selection === undefined) return;
+    if (response.canceled || response.selection === undefined) {
+      back?.();
+      return;
+    }
 
     if (response.selection === 0) {
       staffRoleEditor(player, undefined);
@@ -1215,6 +1397,7 @@ export function staffRoleMenu(player) {
 
     const role = roles[response.selection - 3];
     if (role) staffRoleDetail(player, role.id);
+    else back?.();
   });
 }
 
@@ -1231,7 +1414,7 @@ function staffRoleDetail(player, roleId) {
     }
 
     const holders = staff.allAssignments().filter((a) => a.role.id === roleId);
-    const form = new ActionFormData()
+    const form = action()
       .title(`${role.color}${truncate(role.name, 22)}`)
       .body(
         TEXT.menu.staffRoleDetailBody(
@@ -1288,7 +1471,7 @@ function staffRoleEditor(player, roleId) {
       .dropdown(
         'color',
         TEXT.menu.colour,
-        ROLE_COLOR_CHOICES.map((choice) => `${choice.code}${choice.label}`),
+        colorOptions(),
         { defaultValueIndex: colorIndex },
       )
       .dropdown(
@@ -1425,8 +1608,9 @@ function staffAssignForm(player, target) {
  * admin has switched `staffCanApproveClans` off.
  *
  * @param {Player} player
+ * @param {() => void} [back]
  */
-export function requestQueue(player) {
+export function requestQueue(player, back) {
   run(player, async () => {
     // The queue holds both kinds, and the two permissions are separate, so a
     // reviewer only ever sees what they are actually allowed to act on.
@@ -1437,10 +1621,12 @@ export function requestQueue(player) {
       } else {
         player.sendMessage(msg(TEXT.menu.noClanRequestsAreWaiting));
       }
+      back?.();
       return;
     }
 
     const chosen = await pickFrom(player, {
+      back,
       title: TEXT.menu.clanRequests,
       body: TEXT.menu.requestSAwaitingReview(queue.length),
       items: queue,
@@ -1493,7 +1679,7 @@ function reviewRequest(player, requestId) {
         ? `${C.gray}Rename to ${C.aqua}${request.newName}${C.gray}\n`
         : TEXT.menu.aNewClan;
 
-    const form = new ActionFormData()
+    const form = action()
       .title(`${C.aqua}${truncate(request.name, 22)}`)
       .body(
         TEXT.menu.requestedByStatus(
@@ -1610,7 +1796,7 @@ export function settingsMenu(player) {
     const current = settings.get();
     const notes = current.notifications;
 
-    const response = await modal(TEXT.menu.clanSettings)
+    const response = await modal(TEXT.menu.sigilSettings)
       .header(TEXT.menu.clanCreation)
       .toggle('requireApproval', TEXT.menu.requireAdminApprovalToCreate, {
         defaultValue: current.requireClanApproval,
@@ -1777,8 +1963,9 @@ export function purgeConfirm(player, target, back) {
  * Picks a player to purge, including offline ones.
  *
  * @param {Player} player
+ * @param {() => void} [back]
  */
-export function purgePicker(player) {
+export function purgePicker(player, back) {
   run(player, async () => {
     if (!staff.isAdmin(player)) {
       player.sendMessage(errorMsg(TEXT.common.notAdminPurge));
@@ -1788,10 +1975,12 @@ export function purgePicker(player) {
     const known = players.allKnown();
     if (known.length === 0) {
       player.sendMessage(msg(TEXT.menu.noPlayersOnRecordYet));
+      back?.();
       return;
     }
 
     const target = await pickPlayer(player, {
+      back,
       title: `${C.red}Purge a Player`,
       body:
         TEXT.menu.removesAPlayerFromThe +
@@ -1853,7 +2042,7 @@ export function warMenu(player) {
       ? TEXT.menu.isAnOutpostOutpostsCannot2(clan.name)
       : TEXT.menu.activeWarSDeclarationS(active.length, incoming.length);
 
-    const form = new ActionFormData()
+    const form = action()
       .title(TEXT.menu.warMap)
       .body(`${C.gray}${clan.name}\n${status}`);
 
@@ -1934,7 +2123,7 @@ function declareWarPicker(player, clanId) {
       return;
     }
 
-    const form = new ActionFormData()
+    const form = action()
       .title(TEXT.menu.declareWar)
       .body(
         TEXT.menu.chooseAClanToDeclare(
@@ -2013,7 +2202,7 @@ function declarationInbox(player, clanId) {
       return;
     }
 
-    const form = new ActionFormData()
+    const form = action()
       .title(TEXT.menu.declarations)
       .body(TEXT.menu.clanSHaveDeclaredWar(incoming.length, clan.name));
     for (const war of incoming) {
@@ -2047,7 +2236,7 @@ function answerDeclaration(player, warId) {
 
     const attacker = clans.getClan(war.clanA);
     const defender = clans.getClan(war.clanB);
-    const form = new ActionFormData()
+    const form = action()
       .title(`${C.red}${truncate(attacker?.name ?? TEXT.fragment.lostClan, 20)}`)
       .body(
         TEXT.menu.hasDeclaredWarOnAccepting(attacker?.name ?? TEXT.menu.aLostClan, defender?.name ?? TEXT.menu.yourClan),
@@ -2116,7 +2305,7 @@ export function warStandings(player) {
       return;
     }
 
-    const form = new ActionFormData()
+    const form = action()
       .title(TEXT.menu.warStandings)
       .body(`${C.gray}${active.map(warLine).join('\n')}`)
       .button(TEXT.menu.close);
@@ -2139,7 +2328,7 @@ function ourWars(player, clanId) {
       return;
     }
 
-    const form = new ActionFormData().title(TEXT.menu.ourWars).body(TEXT.menu.selectAWar);
+    const form = action().title(TEXT.menu.ourWars).body(TEXT.menu.selectAWar);
     for (const war of live) {
       const state = war.state === 'pending' ? `${C.yellow}${TEXT.fragment.warPending}` : `${C.red}${TEXT.fragment.warActive}`;
       form.button(`${warLine(war)}\n${state}`);
@@ -2186,7 +2375,7 @@ function warDetail(player, warId, viewingClanId) {
         ? TEXT.menu.yourPeaceOfferIsAwaiting
         : '';
 
-    const form = new ActionFormData()
+    const form = action()
       .title(TEXT.menu.war(warbook.ordinal(war.ordinal)))
       .body(TEXT.menu.state(warLine(war), war.state, standing));
 
@@ -2504,7 +2693,7 @@ function withdrawDeclarationPicker(player, clanId) {
       return;
     }
 
-    const form = new ActionFormData()
+    const form = action()
       .title(TEXT.menu.withdrawDeclaration)
       .body(TEXT.menu.theseClansHaveNotAnswered);
     for (const war of outgoing) form.button(`${C.aqua}${truncate(war.nameB, 22)}`);
@@ -2540,8 +2729,9 @@ function withdrawDeclarationPicker(player, clanId) {
  * is exactly who should be using it.
  *
  * @param {Player} player
+ * @param {() => void} [back]
  */
-export function staffWarBrowser(player) {
+export function staffWarBrowser(player, back) {
   run(player, async () => {
     if (!wars.canAnnul(player) && !wars.canAdjustKills(player)) {
       player.sendMessage(errorMsg(TEXT.menu.youDoNotHaveWar));
@@ -2551,24 +2741,30 @@ export function staffWarBrowser(player) {
     const live = wars.liveWars();
     if (live.length === 0) {
       player.sendMessage(msg(TEXT.menu.noWarsAreBeingFought));
+      back?.();
       return;
     }
 
-    const form = new ActionFormData()
+    const form = action()
       .title(TEXT.menu.activeWars)
       .body(TEXT.menu.warSInProgress(live.length));
     for (const war of live) {
       const state = war.state === 'pending' ? `${C.yellow}${TEXT.fragment.warPending}` : `${C.red}${TEXT.fragment.warActive}`;
       form.button(`${warLine(war)}\n${state}`);
     }
+    if (back) form.button(TEXT.menu.back);
 
     const response = await show(form, player);
-    if (response.canceled || response.selection === undefined) return;
+    if (response.canceled || response.selection === undefined) {
+      back?.();
+      return;
+    }
 
     const war = live[response.selection];
     // Viewed as a neutral party: no clan of their own is in play, so the
     // surrender and peace options correctly do not appear.
     if (war) warDetail(player, war.id, '');
+    else back?.();
   });
 }
 
@@ -2592,7 +2788,7 @@ export function warRecord(player, warId, page = 0) {
     const pages = warbook.buildPages(war);
     const index = Math.max(0, Math.min(page, pages.length - 1));
 
-    const form = new ActionFormData()
+    const form = action()
       .title(`${C.gold}${warbook.bookName(war)}`)
       .body(
         pages.length > 1
@@ -2643,7 +2839,7 @@ export function warHistoryMenu(player) {
 
       // One pass over history for the whole list, rather than one per clan.
       const counts = wars.endedCountsByClan();
-      const form = new ActionFormData()
+      const form = action()
         .title(TEXT.menu.warRecords)
         .body(TEXT.menu.chooseAClanWhoseWar);
       for (const clan of all) {
@@ -2771,7 +2967,7 @@ export function promotionRequest(player) {
         : TEXT.menu.youNeedMoreMemberS(needed - have));
 
     if (have < needed) {
-      const info = new ActionFormData()
+      const info = action()
         .title(TEXT.menu.requestPromotion)
         .body(body)
         .button(TEXT.menu.close);
@@ -2812,7 +3008,8 @@ export function promotionRequest(player) {
  * @returns {string[]}
  */
 function colorOptions() {
-  return ROLE_COLOR_CHOICES.map((choice) => `${choice.code}${choice.label}`);
+  const names = /** @type {Record<string, string>} */ (TEXT.color);
+  return ROLE_COLOR_CHOICES.map((choice) => `${choice.code}${names[choice.id] ?? choice.id}`);
 }
 
 /**
@@ -2876,15 +3073,16 @@ const VISIBILITY_OPTIONS = [
  * system allows.
  *
  * @param {Player} player
+ * @param {() => void} [back]
  */
-export function displaySettingsMenu(player) {
+export function displaySettingsMenu(player, back) {
   run(player, async () => {
     if (!staff.canManageStaffRoles(player)) {
       player.sendMessage(errorMsg(TEXT.common.notAdminSettings));
       return;
     }
 
-    const form = new ActionFormData()
+    const form = action()
       .title(TEXT.menu.displaySettings)
       .body(TEXT.menu.howClanAndSystemIdentity)
       .button(TEXT.menu.nametagsRoleOrderBrackets)
@@ -2901,6 +3099,11 @@ export function displaySettingsMenu(player) {
       () => peacefulSettingsForm(player),
       () => colorSettingsForm(player),
     ];
+
+    if (back) {
+      form.button(TEXT.menu.back);
+      actions.push(back);
+    }
 
     const response = await show(form, player);
     if (response.canceled || response.selection === undefined) return;
@@ -2994,6 +3197,13 @@ function chatSettingsForm(player) {
         defaultValue: chat.peacefulOrder,
         valueStep: 5,
       })
+      // The name is a position in the same sequence, not a separate switch:
+      // sliding a tag past it is what puts that tag after the name, and there
+      // is no other control that could express that.
+      .slider('nameOrder', TEXT.menu.playerNameOrder, 0, 50, {
+        defaultValue: chat.nameOrder,
+        valueStep: 5,
+      })
       .submitButton(TEXT.menu.save)
       .show(player);
 
@@ -3009,6 +3219,7 @@ function chatSettingsForm(player) {
           systemOrder: response.num('systemOrder'),
           clanOrder: response.num('clanOrder', 10),
           peacefulOrder: response.num('peacefulOrder', 20),
+          nameOrder: response.num('nameOrder', 30),
         },
       },
     });
@@ -3166,6 +3377,7 @@ function colorSettingsForm(player) {
     const { colors } = settings.get().display;
 
     const response = await modal(`${C.aqua}Colours`)
+      .label(TEXT.menu.coloursAreDefaultsBody)
       .dropdown('clan', TEXT.menu.clanName, colorOptions(), {
         defaultValueIndex: colorIndex(colors.clan),
       })

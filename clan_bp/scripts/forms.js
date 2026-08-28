@@ -28,6 +28,7 @@
 
 import { system } from '@minecraft/server';
 import { ActionFormData, ModalFormData, FormCancelationReason } from '@minecraft/server-ui';
+import { buttonText, wrapText } from './format.js';
 
 /** How long to keep retrying a form while the player has a screen open. */
 const BUSY_RETRY_TICKS = 10;
@@ -60,17 +61,69 @@ function isBusy(response) {
 /**
  * Shows an action form, retrying while the player is busy.
  *
- * @param {ActionFormData} form
+ * Accepts either a raw `ActionFormData` or one of the builders {@link action}
+ * returns, so a screen can be handed to it whichever way it was assembled.
+ *
+ * @param {ActionFormData | ActionBuilder} form
  * @param {import('@minecraft/server').Player} player
  * @returns {Promise<import('@minecraft/server-ui').ActionFormResponse>}
  */
 export async function showAction(form, player) {
-  let response = await form.show(player);
+  const real = 'raw' in form ? form.raw : form;
+  let response = await real.show(player);
   for (let attempt = 0; attempt < BUSY_MAX_ATTEMPTS && isBusy(response); attempt += 1) {
     await delay(BUSY_RETRY_TICKS);
-    response = await form.show(player);
+    response = await real.show(player);
   }
   return response;
+}
+
+/**
+ * An action form whose button labels are re-coloured for the button panel.
+ *
+ * @typedef {object} ActionBuilder
+ * @property {ActionFormData} raw
+ * @property {(text: string) => ActionBuilder} title
+ * @property {(text: string) => ActionBuilder} body
+ * @property {(label: string, icon?: string) => ActionBuilder} button
+ * @property {(player: import('@minecraft/server').Player) =>
+ *   Promise<import('@minecraft/server-ui').ActionFormResponse>} show
+ */
+
+/**
+ * Builds an action form.
+ *
+ * The only thing this adds over `new ActionFormData()` is that every button
+ * label passes through {@link buttonText} on its way in. Doing it here rather
+ * than at each call site is what makes the rule hold for labels assembled at
+ * runtime — a clan name in the colour its leader chose, a war standing, a
+ * member row — which are exactly the ones a catalogue pass would have missed.
+ *
+ * @returns {ActionBuilder}
+ */
+export function action() {
+  const form = new ActionFormData();
+
+  /** @type {ActionBuilder} */
+  const api = {
+    raw: form,
+    title(text) {
+      form.title(text);
+      return api;
+    },
+    body(text) {
+      form.body(text);
+      return api;
+    },
+    button(label, icon) {
+      form.button(buttonText(label), icon);
+      return api;
+    },
+    show(player) {
+      return showAction(form, player);
+    },
+  };
+  return api;
 }
 
 /**
@@ -141,7 +194,10 @@ export function modal(title) {
      * @param {string} text
      */
     label(text) {
-      form.label(text);
+      // Labels are the one element the engine will not wrap for us, so an
+      // over-long sentence simply runs off the panel. Breaking it here covers
+      // every form at once, including translations whose words fall elsewhere.
+      form.label(wrapText(text));
       slots.push(null);
       return api;
     },
@@ -198,7 +254,7 @@ export function modal(title) {
      * @param {string} text
      */
     submitButton(text) {
-      form.submitButton(text);
+      form.submitButton(buttonText(text));
       return api;
     },
     /**

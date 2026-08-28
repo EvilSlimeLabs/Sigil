@@ -7,7 +7,14 @@
  * module including ones that run during early execution.
  */
 
-/** Minecraft formatting codes, named so call sites read as prose. */
+/**
+ * Minecraft formatting codes, named so call sites read as prose.
+ *
+ * The first sixteen are the original colours every edition has had. The
+ * `material*` entries below them are Bedrock's later additions, named after the
+ * ore or block whose colour they take; they are only valid on Bedrock, which is
+ * the only place this pack runs.
+ */
 export const C = {
   black: '§0',
   darkBlue: '§1',
@@ -25,8 +32,53 @@ export const C = {
   pink: '§d',
   yellow: '§e',
   white: '§f',
+  minecoin: '§g',
+  materialQuartz: '§h',
+  materialIron: '§i',
+  materialNetherite: '§j',
+  materialRedstone: '§m',
+  materialCopper: '§n',
+  materialGold: '§p',
+  materialEmerald: '§q',
+  materialDiamond: '§s',
+  materialLapis: '§t',
+  materialAmethyst: '§u',
+  materialResin: '§v',
   bold: '§l',
   reset: '§r',
+};
+
+/**
+ * How a colour is re-drawn when it lands on a form button.
+ *
+ * Form buttons are a light grey panel. Gray (`§7`) is that same grey, so a
+ * subtitle drawn in it disappears entirely, and the bright half of the palette
+ * — aqua, green, yellow — sits close enough in value to read as washed out.
+ * Every button label is therefore mapped through this table into the dark half,
+ * which keeps the meaning a colour carries while putting real contrast under
+ * it. Body and chat text is drawn on a dark panel and is left alone.
+ *
+ * Codes with no entry here are already dark enough and pass through unchanged.
+ *
+ * @type {Record<string, string>}
+ */
+export const BUTTON_COLOR = {
+  '§7': '§8', // gray        -> dark gray
+  '§f': '§0', // white       -> black
+  '§b': '§3', // aqua        -> dark aqua
+  '§a': '§2', // green       -> dark green
+  '§c': '§4', // red         -> dark red
+  '§e': '§6', // yellow      -> gold
+  '§d': '§5', // pink        -> purple
+  '§9': '§1', // blue        -> dark blue
+  '§g': '§6', // minecoin    -> gold
+  '§h': '§8', // quartz      -> dark gray
+  '§i': '§8', // iron        -> dark gray
+  '§p': '§6', // gold ore    -> gold
+  '§q': '§2', // emerald     -> dark green
+  '§s': '§3', // diamond     -> dark aqua
+  '§u': '§5', // amethyst    -> purple
+  '§v': '§6', // resin       -> gold
 };
 
 /** Prefix shown on every message this add-on sends to a player. */
@@ -185,16 +237,50 @@ export const DEFAULT_STAFF_ROLES = [
   },
 ];
 
-/** Colours offered when creating or editing a staff role, in dropdown order. */
+/**
+ * Every colour a name, role or title can be given, in dropdown order.
+ *
+ * The list used to hold ten of the sixteen original codes. It now holds all
+ * sixteen, followed by Bedrock's material colours — the ore-and-metal tones the
+ * game added later, which are the only palette entries that look like anything
+ * other than a flat hue. Bright first, dark after, materials last, so the
+ * common choices sit at the top of the dropdown.
+ *
+ * Order is presentation only: a colour is stored as its code, so inserting an
+ * entry here never re-points a colour anyone already chose.
+ *
+ * Only the id is here, not the label a player reads: `config.js` is imported by
+ * every module including the ones that run first, and reaching for the text
+ * catalogue from it would close an import cycle. The names live in
+ * `TEXT.color`, keyed by these ids.
+ */
 export const ROLE_COLOR_CHOICES = [
-  { label: 'Blue', code: C.blue },
-  { label: 'Aqua', code: C.aqua },
-  { label: 'Green', code: C.green },
-  { label: 'Yellow', code: C.yellow },
-  { label: 'Gold', code: C.gold },
-  { label: 'Red', code: C.red },
-  { label: 'Pink', code: C.pink },
-  { label: 'Purple', code: C.purple },
-  { label: 'Gray', code: C.gray },
-  { label: 'White', code: C.white },
+  { id: 'white', code: C.white },
+  { id: 'gray', code: C.gray },
+  { id: 'darkGray', code: C.darkGray },
+  { id: 'black', code: C.black },
+  { id: 'blue', code: C.blue },
+  { id: 'aqua', code: C.aqua },
+  { id: 'green', code: C.green },
+  { id: 'yellow', code: C.yellow },
+  { id: 'gold', code: C.gold },
+  { id: 'red', code: C.red },
+  { id: 'pink', code: C.pink },
+  { id: 'purple', code: C.purple },
+  { id: 'darkBlue', code: C.darkBlue },
+  { id: 'darkAqua', code: C.darkAqua },
+  { id: 'darkGreen', code: C.darkGreen },
+  { id: 'darkRed', code: C.darkRed },
+  { id: 'minecoin', code: C.minecoin },
+  { id: 'quartz', code: C.materialQuartz },
+  { id: 'iron', code: C.materialIron },
+  { id: 'netherite', code: C.materialNetherite },
+  { id: 'redstone', code: C.materialRedstone },
+  { id: 'copper', code: C.materialCopper },
+  { id: 'goldOre', code: C.materialGold },
+  { id: 'emerald', code: C.materialEmerald },
+  { id: 'diamond', code: C.materialDiamond },
+  { id: 'lapis', code: C.materialLapis },
+  { id: 'amethyst', code: C.materialAmethyst },
+  { id: 'resin', code: C.materialResin },
 ];

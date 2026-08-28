@@ -20,7 +20,7 @@
  * impossible to write rather than merely easy to avoid.
  */
 
-import { KEY, LIMITS, LEADER_ROLE, TIER } from './config.js';
+import { KEY, LIMITS, LEADER_ROLE, TIER, ROLE_COLOR_CHOICES } from './config.js';
 import { getString, setString, remove, getJson, setJson, setJsonGuarded, now } from './storage.js';
 import { normalizeKey, validateClanName, validateRoleName } from './format.js';
 import { identityChanged, clanDisbanded } from './hooks.js';
@@ -42,6 +42,8 @@ import { TEXT } from './text.js';
  * @property {Record<string, ClanMember>} members keyed by player id
  * @property {string[]} roles the clan's palette of role names
  * @property {string} tier `outpost` until promoted, then `clan`
+ * @property {string} [color] formatting code the clan's name is drawn in;
+ *   absent means the add-on-wide default for the clan's tier
  */
 
 /**
@@ -427,6 +429,54 @@ export function rename(clanId, rawName) {
 
   for (const id of Object.keys(clan.members)) identityChanged(id);
   return { ok: true, value: { from, to: name } };
+}
+
+/**
+ * Sets the colour the clan's name is drawn in, everywhere it appears.
+ *
+ * This is a clan-wide decision, not a per-member one: the point of a clan
+ * colour is that every member is recognisable as the same clan, which a
+ * per-player override would defeat. Passing an empty code clears it and returns
+ * the clan to the add-on-wide default for its tier.
+ *
+ * The code is checked against the offered palette rather than accepted as
+ * given, so nothing can be stored here that would not render.
+ *
+ * @param {string} clanId
+ * @param {string} code a formatting code from {@link ROLE_COLOR_CHOICES}, or ''
+ * @returns {Result<Clan>}
+ */
+export function setColor(clanId, code) {
+  const clan = getClan(clanId);
+  if (!clan) return { ok: false, error: TEXT.clan.thatClanNoLongerExists };
+
+  if (code === '') {
+    delete clan.color;
+  } else if (ROLE_COLOR_CHOICES.some((choice) => choice.code === code)) {
+    clan.color = code;
+  } else {
+    return { ok: false, error: TEXT.clan.thatIsNotAColour };
+  }
+
+  saveClan(clan);
+  for (const id of Object.keys(clan.members)) identityChanged(id);
+  return { ok: true, value: clan };
+}
+
+/**
+ * The colour a clan's name is drawn in: its own if its Leader chose one, and
+ * otherwise the add-on-wide default for its tier.
+ *
+ * Lives here rather than in the renderer because it is a fact about the clan,
+ * and both the nametag and the chat line have to agree on it.
+ *
+ * @param {Clan} clan
+ * @param {{ clan: string, outpost: string }} defaults
+ * @returns {string}
+ */
+export function colorOf(clan, defaults) {
+  if (clan.color) return clan.color;
+  return isOutpost(clan) ? defaults.outpost : defaults.clan;
 }
 
 /**
