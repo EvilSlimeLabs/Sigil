@@ -318,4 +318,46 @@ clans.removeMember(band.id, rejoin.id);
 check('an understrength clan is demoted on approval', requests.approve(queued[0].id).ok);
 check('and is an outpost again', clans.isOutpost(clans.getClan(band.id)));
 
+// -- Demotions are a queue of their own -----------------------------------
+const reviewer = new mock.Player('q0', 'Queenie');
+reviewer.playerPermissionLevel = mock.PlayerPermissionLevel.Operator;
+playersMod.register(reviewer);
+
+const solo = new mock.Player('q1', 'Solo');
+playersMod.register(solo);
+const keep = clans.createClan(solo.id, solo.name, 'Keepers').value;
+for (const [i, id] of ['q2', 'q3'].entries()) {
+  const p = new mock.Player(id, 'Keeper' + i);
+  playersMod.register(p);
+  clans.addMember(keep.id, p.id, p.name);
+}
+requests.approve(requests.filePromotion({ id: solo.id, name: solo.name }, clans.getClan(keep.id)).value.id);
+clans.removeMember(keep.id, 'q2');
+
+checkEqual('the demotion queue holds it', requests.demotionsReviewableBy(reviewer).length, 1);
+check(
+  'and the request queue does not',
+  requests.reviewableBy(reviewer).every((r) => r.kind !== 'demote'),
+);
+checkEqual(
+  'while the front door counts both',
+  requests.pendingFor(reviewer),
+  requests.reviewableBy(reviewer).length + 1,
+);
+
+// -- The sweep settles the queue against the clans that exist -------------
+requests.demotions().forEach((r) => requests.withdraw(r.id));
+checkEqual('a queue emptied behind the system stays empty', requests.demotions().length, 0);
+checkEqual('until a sweep re-files it', requests.sweepDemotions().filed, 1);
+checkEqual('and a second sweep files nothing new', requests.sweepDemotions().filed, 0);
+
+// Lowering the threshold puts the clan back at strength, so the review goes.
+settings.update({ outpostPromotionMembers: 2 });
+checkEqual('lowering the threshold clears the review', requests.demotions().length, 0);
+check('and the clan keeps its rank', !clans.isOutpost(clans.getClan(keep.id)));
+
+// Raising it strands the clan below a line that moved under it.
+settings.update({ outpostPromotionMembers: 4 });
+checkEqual('raising it files a review without anyone leaving', requests.demotions().length, 1);
+
 finish();

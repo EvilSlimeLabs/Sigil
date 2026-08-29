@@ -42,6 +42,17 @@ function initWorld() {
   // Registered here rather than at module scope because the interval period
   // comes from stored settings, which are not readable before the world loads.
   display.restartAdminPolling();
+  // Demotions are otherwise only noticed when a member leaves, which cannot
+  // happen while nobody is playing. A roster edited by a command between
+  // sessions, or a promotion threshold raised in the settings, would go unseen
+  // until the next departure — so the queue is settled against the clans that
+  // actually exist before anyone opens it.
+  const swept = requests.sweepDemotions();
+  if (swept.filed > 0 || swept.cleared > 0) {
+    console.log(
+      `[sigil] demotion review: ${swept.filed} raised, ${swept.cleared} cleared`,
+    );
+  }
   // The sidebar is a projection of the war records, so it is rebuilt on load
   // rather than trusted to have survived correctly.
   wars.syncScoreboard();

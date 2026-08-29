@@ -16,6 +16,7 @@
 
 import { KEY, C, LIMITS } from './config.js';
 import { getJson, setJson } from './storage.js';
+import { settingsChanged } from './hooks.js';
 
 
 /**
@@ -293,6 +294,7 @@ export function update(changes) {
   };
   setJson(KEY.settings, next);
   cached = next;
+  settingsChanged();
   return next;
 }
 
@@ -367,5 +369,6 @@ export function memberLimit(outpost) {
 export function reset() {
   setJson(KEY.settings, DEFAULTS);
   invalidate();
+  settingsChanged();
   return get();
 }

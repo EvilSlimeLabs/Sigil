@@ -20,7 +20,7 @@ import { KEY, LIMITS } from './config.js';
 import { getJson, setJson, remove, now } from './storage.js';
 import { validateClanName, normalizeKey } from './format.js';
 import * as clans from './clans.js';
-import { onClanUnderstrength } from './hooks.js';
+import { onClanUnderstrength, onSettingsChanged } from './hooks.js';
 import * as settings from './settings.js';
 import * as staff from './staff.js';
 import { onClanDisbanded } from './hooks.js';
@@ -177,13 +177,89 @@ export function fileRename(requester, clan, rawName) {
 }
 
 /**
- * Requests this player is allowed to review.
+ * Every pending demotion review.
+ *
+ * Demotions are kept apart from the rest of the queue everywhere they are read.
+ * The others are all *requests* — a player asked for something and is waiting on
+ * an answer — while a demotion is the system reporting a fact about a clan that
+ * nobody asked for. Mixing them made the one screen answer two different
+ * questions, and buried the reports among the asks.
+ *
+ * @returns {ClanRequest[]}
+ */
+export function demotions() {
+  return all().filter((request) => request.kind === 'demote');
+}
+
+/**
+ * Requests this player is allowed to review, demotions excluded.
  *
  * @param {import('@minecraft/server').Player} player
  * @returns {ClanRequest[]}
  */
 export function reviewableBy(player) {
-  return all().filter((request) => canApproveRequest(player, request));
+  return all().filter(
+    (request) => request.kind !== 'demote' && canApproveRequest(player, request),
+  );
+}
+
+/**
+ * Pending demotions this player is allowed to review.
+ *
+ * @param {import('@minecraft/server').Player} player
+ * @returns {ClanRequest[]}
+ */
+export function demotionsReviewableBy(player) {
+  return canApprovePromotions(player) ? demotions() : [];
+}
+
+/**
+ * How many items of either kind are waiting on this player. Used for the badge
+ * on the front door, which speaks for both queues at once.
+ *
+ * @param {import('@minecraft/server').Player} player
+ * @returns {number}
+ */
+export function pendingFor(player) {
+  return reviewableBy(player).length + demotionsReviewableBy(player).length;
+}
+
+/**
+ * Brings the demotion queue in line with the clans that actually exist.
+ *
+ * Filing is otherwise driven by a single event — a member leaving — which only
+ * ever fires while the world is running. Two things happen outside that: the
+ * promotion threshold is a setting, so raising it can strand clans below a line
+ * that moved under them, and a roster can be edited by a command or another pack
+ * between sessions. So this runs at start-up and on every settings write, and
+ * settles both directions at once.
+ *
+ * Clearing matters as much as filing. A queued demotion for a clan that has
+ * recruited back up, or that now sits above a lowered threshold, is a review
+ * with nothing to decide, and leaving it there teaches reviewers to ignore the
+ * queue.
+ *
+ * @returns {{ filed: number, cleared: number }}
+ */
+export function sweepDemotions() {
+  let filed = 0;
+
+  const stale = new Set(
+    demotions()
+      .filter((request) => {
+        const clan = request.clanId === undefined ? undefined : clans.getClan(request.clanId);
+        return !clan || !clans.isUnderstrength(clan);
+      })
+      .map((request) => request.id),
+  );
+  if (stale.size > 0) save(all().filter((request) => !stale.has(request.id)));
+
+  for (const clan of clans.allClans()) {
+    if (!clans.isUnderstrength(clan)) continue;
+    if (fileDemotion(clan).ok) filed += 1;
+  }
+
+  return { filed, cleared: stale.size };
 }
 
 /**
@@ -493,4 +569,10 @@ onClanDisbanded((clanId) => {
 onClanUnderstrength((clanId) => {
   const clan = clans.getClan(clanId);
   if (clan) fileDemotion(clan);
+});
+
+// The threshold that decides "understrength" is itself a setting, so saving the
+// settings can create or resolve reviews without a single member moving.
+onSettingsChanged(() => {
+  sweepDemotions();
 });

@@ -483,7 +483,22 @@ menu: {
     itStacksWithAdminAnd: `${C.darkGray}It stacks with Admin and staff roles.`,
     recordPageOf: (/** @type {Value} */ a0, /** @type {Value} */ a1, /** @type {Value} */ a2) => `${a0}\n\n${C.darkGray}Page ${a1} of ${a2}`,
     queueRow: (/** @type {Value} */ a0, /** @type {Value} */ a1) => `${C.aqua}${a0}\n${a1}`,
-    queueRowDemote: `${C.gray}below strength, raised for review`,
+    queueRowDemoteCount: (/** @type {Value} */ a0, /** @type {Value} */ a1) => `${C.gray}${a0}/${a1} members, below strength`,
+    clanDemotions: `${C.red}Clan Demotions`,
+    clanDemotionsAwaitingReview: (/** @type {Value} */ a0) => `${C.red}Clan Demotions
+${C.gray}${a0} below strength`,
+    clanDemotionsQueueIsEmpty: `${C.gray}Clan Demotions
+${C.darkGray}every clan is at strength`,
+    clanSBelowStrength: (/** @type {Value} */ a0) => `${C.gray}${a0} clan(s) have fallen below the membership a full clan needs. Each keeps its rank until you decide.`,
+    noClansAreBelowStrength: `${C.gray}No clans are below strength.`,
+    demotionFromFullToOutpost: `${C.gray}Demotion, from full clan back to outpost
+`,
+    membersOfThreshold: (/** @type {Value} */ a0, /** @type {Value} */ a1) => `${C.gray}Members: ${C.red}${a0}${C.gray}/${a1}
+`,
+    raisedBySystemBody: (/** @type {Value} */ a0) => `${a0}${C.gray}Raised automatically. Approve to demote, or deny to let the clan keep its rank.`,
+    isNowAnOutpost: (/** @type {Value} */ a0) => `${a0} is now an outpost.`,
+    hasBeenReturnedToOutpost: (/** @type {Value} */ a0) => `${C.yellow}${a0} has been returned to outpost status.`,
+    keepsItsRank: (/** @type {Value} */ a0) => `${a0} keeps its rank.`,
     addAMemberAdmin: `${C.green}Add a Member
 ${C.gray}admin; skips the invite`,
     addAMemberTitle: `${C.green}Add a Member`,

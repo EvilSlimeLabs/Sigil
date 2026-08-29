@@ -297,7 +297,7 @@ export function mainMenu(player) {
     // most about other people's clans. An ordinary player still sees the same
     // three or four entries they always did.
     if (canReachAdminTools(player)) {
-      const queued = requests.reviewableBy(player).length;
+      const queued = requests.pendingFor(player);
       form.button(
         queued > 0 ? TEXT.menu.adminToolsWaiting(queued) : TEXT.menu.adminTools,
       );
@@ -375,6 +375,20 @@ export function adminMenu(player, back) {
           : TEXT.menu.clanRequestsQueueIsEmpty,
       );
       actions.push(() => requestQueue(player, home));
+    }
+
+    // Its own button rather than a section of the one above. A demotion is not
+    // a request — nobody asked for it — and the count has to be readable on its
+    // own, because a queue of five creations hiding one clan about to lose its
+    // rank is exactly the case this was reported for.
+    if (requests.canApprovePromotions(player)) {
+      const understrength = requests.demotionsReviewableBy(player).length;
+      form.button(
+        understrength > 0
+          ? TEXT.menu.clanDemotionsAwaitingReview(understrength)
+          : TEXT.menu.clanDemotionsQueueIsEmpty,
+      );
+      actions.push(() => demotionQueue(player, home));
     }
 
     if (staff.canManageAnyClan(player)) {
@@ -1876,14 +1890,13 @@ export function requestQueue(player, back) {
       body: TEXT.menu.requestSAwaitingReview(queue.length),
       items: queue,
       describe: (request) => {
+        // Demotions never reach this screen; they have their own queue.
         const kind =
           request.kind === 'promote'
             ? TEXT.menu.queueRowPromote(request.requesterName)
-            : request.kind === 'demote'
-              ? TEXT.menu.queueRowDemote
-              : request.kind === 'rename'
-                ? TEXT.menu.queueRowRename(request.newName ?? '', request.requesterName)
-                : TEXT.menu.queueRowCreate(request.requesterName);
+            : request.kind === 'rename'
+              ? TEXT.menu.queueRowRename(request.newName ?? '', request.requesterName)
+              : TEXT.menu.queueRowCreate(request.requesterName);
         return TEXT.menu.queueRow(truncate(request.name, 20), kind);
       },
       match: (request) => request.name,
@@ -1894,48 +1907,118 @@ export function requestQueue(player, back) {
 }
 
 /**
+ * The demotion queue: full clans that have fallen below the membership a
+ * promotion needs, waiting on a person to decide.
+ *
+ * Deliberately a screen of its own. Every other entry in the review queue is
+ * something a player asked for and is waiting on; these are reports the system
+ * raised about clans, and reading them alongside the asks made both harder to
+ * act on.
+ *
+ * @param {Player} player
+ * @param {() => void} [back]
+ */
+export function demotionQueue(player, back) {
+  run(player, async () => {
+    if (!requests.canApprovePromotions(player)) {
+      player.sendMessage(errorMsg(TEXT.common.notReviewer));
+      back?.();
+      return;
+    }
+
+    const queue = requests.demotionsReviewableBy(player);
+    if (queue.length === 0) {
+      player.sendMessage(msg(TEXT.menu.noClansAreBelowStrength));
+      back?.();
+      return;
+    }
+
+    const home = () => demotionQueue(player, back);
+    const chosen = await pickFrom(player, {
+      back,
+      title: TEXT.menu.clanDemotions,
+      body: TEXT.menu.clanSBelowStrength(queue.length),
+      items: queue,
+      describe: (request) => {
+        const clan = request.clanId ? clans.getClan(request.clanId) : undefined;
+        const have = clan ? clans.memberCount(clan) : 0;
+        return TEXT.menu.queueRow(
+          truncate(request.name, 20),
+          TEXT.menu.queueRowDemoteCount(have, settings.promotionThreshold()),
+        );
+      },
+      match: (request) => request.name,
+    });
+
+    if (chosen) reviewRequest(player, chosen.id, home);
+  });
+}
+
+/**
+ * The "3/5 members" line under a demotion's heading, in red because the number
+ * being short is the whole reason the review exists.
+ *
+ * @param {import('./clans.js').Clan | undefined} clan
+ * @returns {string}
+ */
+function demotionCount(clan) {
+  const have = clan ? clans.memberCount(clan) : 0;
+  return TEXT.menu.membersOfThreshold(have, settings.promotionThreshold());
+}
+
+/**
  * Approve or deny a single request.
  *
  * @param {Player} player
  * @param {string} requestId
+ * @param {() => void} [back] the queue to return to, defaulting to the request
+ *   queue; a demotion came from its own screen and has to go back to it
  */
-function reviewRequest(player, requestId) {
+function reviewRequest(player, requestId, back) {
+  const queue = back ?? (() => requestQueue(player));
   run(player, async () => {
     const request = requests.byId(requestId);
     if (!request) {
       player.sendMessage(errorMsg(TEXT.menu.thatRequestHasAlreadyBeen));
-      requestQueue(player);
+      queue();
       return;
     }
 
     if (!requests.canApproveRequest(player, request)) {
       player.sendMessage(errorMsg(TEXT.menu.youCannotReviewThatKind));
-      requestQueue(player);
+      queue();
       return;
     }
 
     const requester = players.ref(request.requesterId);
     const promoting = request.kind === 'promote';
-    const promoteClan = promoting && request.clanId ? clans.getClan(request.clanId) : undefined;
+    const demoting = request.kind === 'demote';
+    const subject = request.clanId ? clans.getClan(request.clanId) : undefined;
 
     const detail = promoting
       ? TEXT.menu.promotionFromOutpostToFull +
-        `${C.gray}Members: ${C.white}${promoteClan ? clans.memberCount(promoteClan) : 0}` +
+        `${C.gray}Members: ${C.white}${subject ? clans.memberCount(subject) : 0}` +
         `${C.gray}/${settings.promotionThreshold()}\n`
-      : request.kind === 'rename'
-        ? `${C.gray}Rename to ${C.aqua}${request.newName}${C.gray}\n`
-        : TEXT.menu.aNewClan;
+      : demoting
+        ? TEXT.menu.demotionFromFullToOutpost + demotionCount(subject)
+        : request.kind === 'rename'
+          ? `${C.gray}Rename to ${C.aqua}${request.newName}${C.gray}\n`
+          : TEXT.menu.aNewClan;
 
     const form = action()
       .title(`${C.aqua}${truncate(request.name, 22)}`)
       .body(
-        TEXT.menu.requestedByStatus(
-          detail,
-          request.requesterName,
-          requester.online
-            ? `${C.green}${TEXT.fragment.online}`
-            : `${C.darkGray}${TEXT.fragment.offline}`,
-        ),
+        // Nobody filed a demotion, so naming a requester and saying whether
+        // they are online would be a lie dressed up as detail.
+        demoting
+          ? TEXT.menu.raisedBySystemBody(detail)
+          : TEXT.menu.requestedByStatus(
+              detail,
+              request.requesterName,
+              requester.online
+                ? `${C.green}${TEXT.fragment.online}`
+                : `${C.darkGray}${TEXT.fragment.offline}`,
+            ),
       )
       .button(TEXT.menu.approve)
       .button(TEXT.menu.deny)
@@ -1943,7 +2026,7 @@ function reviewRequest(player, requestId) {
 
     const response = await show(form, player);
     if (response.canceled || response.selection === undefined || response.selection === 2) {
-      requestQueue(player);
+      queue();
       return;
     }
 
@@ -1956,6 +2039,12 @@ function reviewRequest(player, requestId) {
         player.sendMessage(successMsg(TEXT.menu.isNow(request.name, clan.name)));
         for (const id of Object.keys(clan.members)) {
           players.notify(id, msg(TEXT.menu.yourClanIsNowCalled(clan.name)));
+        }
+      } else if (demoting) {
+        const { clan } = approved.value;
+        player.sendMessage(successMsg(TEXT.menu.isNowAnOutpost(clan.name)));
+        for (const id of Object.keys(clan.members)) {
+          players.notify(id, msg(TEXT.menu.hasBeenReturnedToOutpost(clan.name)));
         }
       } else if (promoting) {
         const { clan } = approved.value;
@@ -1978,11 +2067,11 @@ function reviewRequest(player, requestId) {
         );
         announce.clanCreated(clan.name, request.requesterName);
       }
-      requestQueue(player);
+      queue();
       return;
     }
 
-    denyRequest(player, requestId);
+    denyRequest(player, requestId, queue);
   });
 }
 
@@ -1991,8 +2080,10 @@ function reviewRequest(player, requestId) {
  *
  * @param {Player} player
  * @param {string} requestId
+ * @param {() => void} [back] the queue to return to
  */
-function denyRequest(player, requestId) {
+function denyRequest(player, requestId, back) {
+  const queue = back ?? (() => requestQueue(player));
   run(player, async () => {
     const response = await modal(TEXT.menu.denyRequest)
       .textField('reason', TEXT.menu.reasonOptional, TEXT.menu.nameIsNotAppropriate)
@@ -2000,7 +2091,7 @@ function denyRequest(player, requestId) {
       .show(player);
 
     if (response.canceled) {
-      requestQueue(player);
+      queue();
       return;
     }
 
@@ -2008,6 +2099,10 @@ function denyRequest(player, requestId) {
     const denied = requests.deny(requestId);
     if (!denied.ok) {
       player.sendMessage(errorMsg(denied.error));
+    } else if (denied.value.kind === 'demote') {
+      // Dismissed rather than denied, and there is no requester to write to. It
+      // is raised again the next time the roster or the threshold moves.
+      player.sendMessage(msg(TEXT.menu.keepsItsRank(denied.value.name)));
     } else {
       player.sendMessage(msg(TEXT.menu.deniedTheRequestFor(denied.value.name)));
       players.notify(
@@ -2020,7 +2115,7 @@ function denyRequest(player, requestId) {
         ),
       );
     }
-    requestQueue(player);
+    queue();
   });
 }
 

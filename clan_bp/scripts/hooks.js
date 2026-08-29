@@ -79,6 +79,36 @@ export function clanUnderstrength(clanId) {
   }
 }
 
+/** @type {Array<() => void>} */
+const settingsListeners = [];
+
+/**
+ * Registers a listener called whenever the stored settings are written.
+ *
+ * `requests.js` needs it because the promotion threshold is a setting: raising
+ * it can put clans below strength that were fine a moment ago, and lowering it
+ * can clear reviews that are no longer warranted. `settings.js` must not import
+ * the queue to say so, so the fact travels through here.
+ *
+ * @param {() => void} listener
+ */
+export function onSettingsChanged(listener) {
+  settingsListeners.push(listener);
+}
+
+/**
+ * Announces that the settings were written.
+ */
+export function settingsChanged() {
+  for (const listener of settingsListeners) {
+    try {
+      listener();
+    } catch (err) {
+      console.warn(`[sigil] settings listener failed: ${err}`);
+    }
+  }
+}
+
 /**
  * Registers a listener called whenever a player's displayed identity changes.
  *
