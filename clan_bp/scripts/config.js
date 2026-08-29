@@ -117,10 +117,10 @@ export const KEY = {
   /** JSON array of pending creation and promotion requests awaiting review */
   requests: 'clan:requests',
   /**
-   * JSON array of war ids that are still pending or active. Deliberately not
-   * an index of *every* war: wars are kept forever, and one property holding
-   * every id would hit the ~32KB string ceiling somewhere near two thousand
-   * wars. Full history is enumerated from `getDynamicPropertyIds()` instead.
+   * JSON array of war ids that are still pending or active, not an index of
+   * every war: wars are kept forever, and one property holding every id would
+   * reach the ~32KB string ceiling near two thousand wars. Full history is
+   * enumerated from `getDynamicPropertyIds()` instead.
    */
   warLive: 'clan:warlive',
   /** `clan:war:<warId>` -> JSON war record; never deleted once the war began */
@@ -129,16 +129,23 @@ export const KEY = {
   warPair: 'clan:warpair:',
   /** `clan:warpast:<idA>|<idB>` (sorted) -> JSON array of every war id, oldest first */
   warPast: 'clan:warpast:',
+  /** JSON array of alliance ids that are still pending or standing */
+  allyLive: 'clan:allylive',
+  /** `clan:ally:<allianceId>` -> JSON alliance record; kept once agreed */
+  alliance: 'clan:ally:',
+  /** `clan:allypair:<idA>|<idB>` (sorted) -> id of the live alliance between them */
+  allyPair: 'clan:allypair:',
+  /** `clan:allypast:<idA>|<idB>` (sorted) -> JSON array of every alliance id, oldest first */
+  allyPast: 'clan:allypast:',
   /** `clan:peace:<playerId>` -> present when the player is marked Peaceful */
   peaceful: 'clan:peace:',
   /**
    * `clan:ledger:<playerId>` -> present once they have been given one.
    *
-   * Deliberately not the old `clan:compass:` key. The item's identifier changed
+   * A separate key from the old `clan:compass:`. The item's identifier changed
    * when it stopped being a compass, so every copy already in a world became an
-   * unknown item — and a player whose old key was set would otherwise never be
-   * issued the replacement. A new key re-issues once to everybody and then
-   * behaves exactly as the old one did.
+   * unknown item; a fresh key re-issues once to everybody and then behaves as
+   * the old one did.
    */
   ledgerIssued: 'clan:ledger:',
   staffRoles: 'clan:staff:roles',
@@ -162,6 +169,8 @@ export const LIMITS = {
   maxPendingInvites: 10,
   /** Clan-creation requests the review queue will hold. */
   maxPendingRequests: 200,
+  /** Standing alliances one clan may hold, pending proposals aside. */
+  maxAlliancesPerClan: 10,
   /**
    * Characters one stored record may hold. A dynamic property string tops out
    * near 32KB; this sits below that so a refusal is a warning rather than an

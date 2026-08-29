@@ -7,7 +7,13 @@
 import { action, showAction as show, modal } from '../forms.js';
 import { C, LIMITS } from '../config.js';
 import { BRACKET_STYLES, bracketIndex } from '../brackets.js';
-import { errorMsg, successMsg, validateStaffRoleName, validateStaffSymbol } from '../format.js';
+import {
+  errorMsg,
+  successMsg,
+  msg,
+  validateStaffRoleName,
+  validateStaffSymbol,
+} from '../format.js';
 import { TEXT } from '../text.js';
 import * as staff from '../staff.js';
 import * as settings from '../settings.js';
@@ -72,12 +78,25 @@ export function settingsMenu(player) {
       })
       .divider()
       .header(TEXT.menu.wars)
+      .toggle('warsEnabled', TEXT.menu.settingWarsEnabled, {
+        defaultValue: current.warsEnabled !== false,
+      })
+      .label(TEXT.menu.warsDisabledHint)
       .toggle('warNeedsAcceptance', TEXT.menu.declarationsMustBeAccepted, {
         defaultValue: current.warRequiresAcceptance,
       })
       .slider('maxWars', TEXT.menu.maxActiveWarsPerClan, 0, 20, {
         defaultValue: Math.max(0, Math.round(current.maxActiveWarsPerClan)),
         valueStep: 1,
+      })
+      .divider()
+      .header(TEXT.menu.alliances)
+      .toggle('alliancesEnabled', TEXT.menu.settingAlliancesEnabled, {
+        defaultValue: current.alliancesEnabled !== false,
+      })
+      .label(TEXT.menu.alliancesDisabledHint)
+      .toggle('outpostsMayAlly', TEXT.menu.settingOutpostsMayAlly, {
+        defaultValue: current.outpostsMayAlly === true,
       })
       .divider()
       .header(TEXT.menu.chatNotifications)
@@ -89,6 +108,9 @@ export function settingsMenu(player) {
       .toggle('notifyPromoted', TEXT.menu.outpostPromoted, { defaultValue: notes.clanPromoted })
       .toggle('notifyWarDeclared', TEXT.menu.warDeclared, { defaultValue: notes.warDeclared })
       .toggle('notifyWarEnded', TEXT.menu.warEnded, { defaultValue: notes.warEnded })
+      .toggle('notifyAlliance', TEXT.menu.allianceChanged, {
+        defaultValue: notes.allianceChanged,
+      })
       .divider()
       .header(TEXT.menu.adminStatus)
       .slider('pollSeconds', TEXT.menu.reCheckOperatorStatusEvery, 5, 300, {
@@ -108,6 +130,9 @@ export function settingsMenu(player) {
       outpostPromotionMembers: response.num('promotionMembers', current.outpostPromotionMembers),
       maxOutpostMembers: response.num('maxOutpost', current.maxOutpostMembers),
       maxClanMembers: response.num('maxClan', current.maxClanMembers),
+      warsEnabled: response.bool('warsEnabled'),
+      alliancesEnabled: response.bool('alliancesEnabled'),
+      outpostsMayAlly: response.bool('outpostsMayAlly'),
       warRequiresAcceptance: response.bool('warNeedsAcceptance'),
       maxActiveWarsPerClan: response.num('maxWars', current.maxActiveWarsPerClan),
       opPollSeconds: nextPoll,
@@ -120,6 +145,7 @@ export function settingsMenu(player) {
         clanPromoted: response.bool('notifyPromoted'),
         warDeclared: response.bool('notifyWarDeclared'),
         warEnded: response.bool('notifyWarEnded'),
+        allianceChanged: response.bool('notifyAlliance'),
       },
     });
 
@@ -128,6 +154,16 @@ export function settingsMenu(player) {
     if (nextPoll !== previousPoll) display.restartAdminPolling();
 
     player.sendMessage(successMsg(TEXT.menu.settingsSaved));
+
+    // `wars.js` annuls what was running when the switch goes off, on the same
+    // settings signal. Saying so here is what stops it looking like the wars
+    // simply vanished.
+    if (current.warsEnabled !== false && !response.bool('warsEnabled')) {
+      player.sendMessage(msg(TEXT.war.warsAnnulledBySetting));
+    }
+    if (current.alliancesEnabled !== false && !response.bool('alliancesEnabled')) {
+      player.sendMessage(msg(TEXT.alliance.alliancesDissolvedBySetting));
+    }
   });
 }
 

@@ -15,7 +15,7 @@ import * as warbook from '../warbook.js';
 import * as settings from '../settings.js';
 import * as announce from '../announce.js';
 import * as players from '../players.js';
-import { confirm, pickFrom, run } from './shared.js';
+import { confirm, pickFrom, run, warsOn } from './shared.js';
 import { promotionRequest } from './clan.js';
 
 /** @typedef {import('@minecraft/server').Player} Player */
@@ -46,6 +46,7 @@ function warLine(war) {
  * @param {Player} player
  */
 export function warMenu(player) {
+  if (!warsOn(player)) return;
   run(player, async () => {
     const clan = clans.clanOf(player.id);
     if (!clan) {
@@ -324,6 +325,7 @@ function notifyBothClans(war, text) {
  * @param {Player} player
  */
 export function warStandings(player) {
+  if (!warsOn(player)) return;
   run(player, async () => {
     const active = wars.liveWars().filter((war) => war.state === 'active');
     if (active.length === 0) {
@@ -767,6 +769,7 @@ function withdrawDeclarationPicker(player, clanId) {
  * @param {() => void} [back]
  */
 export function staffWarBrowser(player, back) {
+  if (!warsOn(player)) return;
   run(player, async () => {
     if (!wars.canAnnul(player) && !wars.canAdjustKills(player)) {
       player.sendMessage(errorMsg(TEXT.menu.youDoNotHaveWar));
@@ -811,6 +814,7 @@ export function staffWarBrowser(player, back) {
  * @param {string} warId
  */
 export function warRecord(player, warId, page = 0) {
+  if (!warsOn(player)) return;
   run(player, async () => {
     const war = wars.getWar(warId);
     if (!war) {
@@ -863,6 +867,7 @@ export function warRecord(player, warId, page = 0) {
  * @param {Player} player
  */
 export function warHistoryMenu(player) {
+  if (!warsOn(player)) return;
   run(player, async () => {
     const own = clans.clanOf(player.id);
     const mayPrintAny = wars.canGenerateWarBooks(player);
@@ -909,6 +914,7 @@ export function warHistoryMenu(player) {
  * @param {string} clanId
  */
 export function clanWarHistoryFor(player, clanId) {
+  if (!warsOn(player)) return;
   clanWarHistory(player, clanId);
 }
 
@@ -920,6 +926,7 @@ export function clanWarHistoryFor(player, clanId) {
  * @param {string} clanId
  */
 export function clanWarHistory(player, clanId) {
+  if (!warsOn(player)) return;
   run(player, async () => {
     const clan = clans.getClan(clanId);
     if (!clan) return;

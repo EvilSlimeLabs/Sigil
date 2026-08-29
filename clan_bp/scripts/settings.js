@@ -121,6 +121,7 @@ import { settingsChanged } from './hooks.js';
  * @property {boolean} clanPromoted   an outpost became a full clan
  * @property {boolean} warDeclared    a war was declared or began
  * @property {boolean} warEnded       a war finished
+ * @property {boolean} allianceChanged  two clans allied, or an alliance ended
  */
 
 /**
@@ -134,6 +135,9 @@ import { settingsChanged } from './hooks.js';
  * @property {number} outpostPromotionMembers  members an outpost needs to request promotion
  * @property {number} maxOutpostMembers        members an outpost may hold
  * @property {number} maxClanMembers           members a full clan may hold
+ * @property {boolean} warsEnabled             the war system is available at all
+ * @property {boolean} alliancesEnabled        the alliance system is available at all
+ * @property {boolean} outpostsMayAlly         outposts may take part in alliances
  * @property {boolean} warRequiresAcceptance   a declaration must be accepted to start
  * @property {number} maxActiveWarsPerClan     0 means unlimited
  * @property {DisplaySettings} display
@@ -154,6 +158,14 @@ const DEFAULTS = {
   // separate caps rather than one number with the tier ignored.
   maxOutpostMembers: 15,
   maxClanMembers: 100,
+  // Wars and alliances are whole subsystems rather than switches on a screen.
+  // Turning wars off annuls every live war; turning alliances off leaves the
+  // ones already agreed in place but stops any new dealing.
+  warsEnabled: true,
+  alliancesEnabled: true,
+  // Off, to match wars: an outpost is a clan that has not established itself
+  // yet, and diplomacy is one of the things promotion is worth.
+  outpostsMayAlly: false,
   warRequiresAcceptance: true,
   maxActiveWarsPerClan: 0,
   display: {
@@ -200,6 +212,7 @@ const DEFAULTS = {
     clanPromoted: true,
     warDeclared: true,
     warEnded: true,
+    allianceChanged: true,
   },
 };
 
@@ -329,8 +342,34 @@ export function promotionThreshold() {
 }
 
 /**
- * How many simultaneous wars one clan may hold, or `undefined` for unlimited.
- * Zero — the default — means unlimited, as specified.
+ * Whether the war system is available at all.
+ *
+ * @returns {boolean}
+ */
+export function warsEnabled() {
+  return get().warsEnabled !== false;
+}
+
+/**
+ * Whether the alliance system is available at all.
+ *
+ * @returns {boolean}
+ */
+export function alliancesEnabled() {
+  return get().alliancesEnabled !== false;
+}
+
+/**
+ * Whether an outpost may take part in an alliance.
+ *
+ * @returns {boolean}
+ */
+export function outpostsMayAlly() {
+  return get().outpostsMayAlly === true;
+}
+
+/**
+ * The most live wars one clan may hold.
  *
  * @returns {number | undefined}
  */

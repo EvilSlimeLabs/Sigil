@@ -89,6 +89,26 @@ export function clanPromoted(clanName) {
 }
 
 /**
+ * Two clans agreed an alliance.
+ *
+ * @param {string} clanNameA
+ * @param {string} clanNameB
+ */
+export function allianceFormed(clanNameA, clanNameB) {
+  broadcast('allianceChanged', TEXT.announce.allianceFormed(clanNameA, clanNameB));
+}
+
+/**
+ * One clan broke an alliance.
+ *
+ * @param {string} breakingName
+ * @param {string} otherName
+ */
+export function allianceEnded(breakingName, otherName) {
+  broadcast('allianceChanged', TEXT.announce.allianceEnded(breakingName, otherName));
+}
+
+/**
  * War was declared. Announced whether or not it needs accepting, but worded to
  * say which it is — a pending declaration is not yet a war.
  *

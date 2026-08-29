@@ -272,8 +272,11 @@ await open(() => {
     promotionMembers: 7,
     maxOutpost: 12,
     maxClan: 60,
+    warsEnabled: true,
     warNeedsAcceptance: false,
     maxWars: 3,
+    alliancesEnabled: true,
+    outpostsMayAlly: false,
     notifyEnabled: true,
     notifyCreated: true,
     notifyJoined: true,
@@ -282,6 +285,7 @@ await open(() => {
     notifyPromoted: true,
     notifyWarDeclared: true,
     notifyWarEnded: true,
+    notifyAlliance: true,
     pollSeconds: 45,
   });
   ui.settingsMenu(admin);
@@ -306,8 +310,11 @@ await open(() => {
     promotionMembers: 9,
     maxOutpost: 20,
     maxClan: 80,
+    warsEnabled: true,
     warNeedsAcceptance: true,
     maxWars: 4,
+    alliancesEnabled: true,
+    outpostsMayAlly: false,
     notifyEnabled: true,
     notifyCreated: true,
     notifyJoined: true,
@@ -316,6 +323,7 @@ await open(() => {
     notifyPromoted: true,
     notifyWarDeclared: true,
     notifyWarEnded: true,
+    notifyAlliance: true,
     pollSeconds: 90,
   });
   ui.settingsMenu(admin);

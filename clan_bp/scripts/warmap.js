@@ -42,6 +42,9 @@
 
 import { system, world, Direction, ItemStack } from '@minecraft/server';
 import { WAR_MAP_BLOCK } from './config.js';
+import { errorMsg } from './format.js';
+import * as settings from './settings.js';
+import { TEXT } from './text.js';
 import * as ui from './ui.js';
 
 /** The custom component name, matching `blocks/war_map.json`. */
@@ -91,6 +94,11 @@ const lastInteraction = new Map();
  * @param {import('@minecraft/server').Player} player
  */
 export function openWarScreen(player) {
+  if (!settings.warsEnabled()) {
+    player.sendMessage(errorMsg(TEXT.war.warsAreDisabled));
+    return;
+  }
+
   const now = system.currentTick;
   const previous = lastInteraction.get(player.id);
   if (previous !== undefined && now - previous < INTERACT_COOLDOWN_TICKS) return;

@@ -103,6 +103,8 @@ A War Map does not stack: one per slot, like a painting you are carrying rather 
 
 Every new clan starts as an **Outpost**. To become a full clan it needs **5 members** including the Leader (an admin setting) and then a **promotion request**, which admins — and Mods by default — approve. A clan an admin founds for someone with `/clan:create <name> <player>` is no exception: it starts as an outpost and is promoted the same way.
 
+An admin can also **promote an outpost outright**, from the clan's page under Admin → Manage Clans. That skips the request queue and the membership requirement both. When the outpost is short of the threshold the confirmation says so and names the shortfall, so waiving the rule is a decision rather than an accident. Any promotion request the clan had waiting is withdrawn.
+
 Outposts show in the outpost colour rather than the clan colour, and **cannot declare or be drawn into wars**. The requirement only says they cannot declare; letting them be declared *upon* would mean a war they cannot fight, so they are excluded from both sides.
 
 ---
@@ -148,6 +150,24 @@ A Leader of a **full clan** declares war on another full clan. By default the ot
 Standings show on a sidebar scoreboard, rebuilt from the war records — so editing the scoreboard with vanilla commands cannot corrupt the real totals. Admins, and Mods by default, can correct a total with `/clan:warkills` or through the War Map.
 
 Several wars can run at once, but **never two between the same pair of clans**. Once a war ends, that pair may declare again as the next numbered war. An admin can cap how many wars a clan holds; the default is unlimited.
+
+Wars can be **turned off entirely** in the settings. With the war system off, war maps cannot be given out, the war screens and war records are unreachable, the war commands refuse, and **every active war is annulled** the moment the switch is saved. Turning it back on leaves the annulled wars in history and lets new ones be declared.
+
+---
+
+## Alliances
+
+Two clans can agree a standing **alliance**. A Leader proposes from their clan menu; the other clan's Leader accepts or declines, the same consent step a war declaration uses. Either side can break one afterwards without the other agreeing.
+
+An alliance carries one rule: **allied clans cannot declare war on each other**. Breaking the alliance is what frees that up. In the other direction, two clans already fighting cannot ally — the war has to be settled first.
+
+**Outposts cannot forge alliances** by default, the same way they cannot fight — diplomacy is one of the things promotion is worth. An admin can allow it with a setting.
+
+Proposals and alliances end when either clan disbands, and every one is kept in the pair's history whether it was agreed, declined, withdrawn or broken. A clan may hold up to ten at once.
+
+The whole system can be turned off in the settings; it is on by default. Turning it off **dissolves every standing alliance**, the same way turning wars off annuls every active war, and stops any new dealing. The dissolved alliances stay in history.
+
+---
 
 ### How a war ends
 
@@ -226,9 +246,12 @@ Defaults produce `✦ Steve` above the head with `Wolves` beneath, and `✦ [Wol
 - **Members needed to request promotion** — default 5
 - **Max members in an outpost** — default 15
 - **Max members in a full clan** — default 100. An outpost is meant to be small; promotion is what lifts the cap, which gives the tier a consequence beyond being allowed to fight
+- **Enable the war system** — default on. Turning it off annuls every active war and hides war maps, war screens and war records
 - **War declarations must be accepted** — default on
 - **Max active wars per clan** — default 0, meaning unlimited
-- **Chat notifications** — a master switch plus one per category: clan created, member joined, member left, clan disbanded, outpost promoted, war declared, war ended. All default on.
+- **Enable the alliance system** — default on. Turning it off dissolves every standing alliance
+- **Outposts may forge alliances** — default off
+- **Chat notifications** — a master switch plus one per category: clan created, member joined, member left, clan disbanded, outpost promoted, war declared, war ended, alliance formed or ended. All default on.
 - **Staff roles may print any war record** — default on
 - **Re-check operator status every N seconds** — default **20**. Bedrock fires no event when someone is opped or de-opped, so admin status is polled; this is how often. Changing it takes effect immediately.
 

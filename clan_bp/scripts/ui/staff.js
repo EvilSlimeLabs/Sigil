@@ -104,11 +104,13 @@ export function adminMenu(player, back) {
       form.button(TEXT.menu.manageClansStaff);
       actions.push(() => staffClanBrowser(player, home));
 
-      const liveCount = wars.liveWars().length;
-      form.button(
-        liveCount > 0 ? TEXT.menu.activeWarsInProgress(liveCount) : TEXT.menu.activeWarsNone,
-      );
-      actions.push(() => staffWarBrowser(player, home));
+      if (settings.warsEnabled()) {
+        const liveCount = wars.liveWars().length;
+        form.button(
+          liveCount > 0 ? TEXT.menu.activeWarsInProgress(liveCount) : TEXT.menu.activeWarsNone,
+        );
+        actions.push(() => staffWarBrowser(player, home));
+      }
     }
 
     if (peaceful.canAssign(player)) {
@@ -231,6 +233,73 @@ export function staffClanBrowser(player, back) {
 
 
 /**
+ * Promotes an outpost to a full clan on an admin's say-so.
+ *
+ * The request queue exists so that promotion is reviewed and so that an outpost
+ * meets a membership threshold before it is granted. This skips both. When the
+ * outpost is below the threshold the confirmation says so and names the
+ * shortfall, so an admin waiving the rule is doing it knowingly rather than
+ * without being told.
+ *
+ * Any promotion request the clan already has in the queue is withdrawn, since
+ * there is nothing left to review.
+ *
+ * @param {Player} player
+ * @param {string} clanId
+ * @param {() => void} [back]
+ */
+function promoteOutpostFlow(player, clanId, back) {
+  run(player, async () => {
+    const clan = clans.getClan(clanId);
+    if (!clan) {
+      player.sendMessage(errorMsg(TEXT.common.clanGone));
+      back?.();
+      return;
+    }
+    if (!staff.isAdmin(player)) {
+      player.sendMessage(errorMsg(TEXT.common.notAdminPurge));
+      back?.();
+      return;
+    }
+    if (!clans.isOutpost(clan)) {
+      player.sendMessage(errorMsg(TEXT.clan.alreadyAFullClan(clan.name)));
+      back?.();
+      return;
+    }
+
+    const needed = settings.promotionThreshold();
+    const have = clans.memberCount(clan);
+    const body =
+      have < needed
+        ? TEXT.menu.promoteOutpostShortBody(clan.name, have, needed)
+        : TEXT.menu.promoteOutpostBody(clan.name, have, needed);
+
+    if (!(await confirm(player, TEXT.menu.promoteOutpostTitle, body, TEXT.menu.promoteAnyway))) {
+      back?.();
+      return;
+    }
+
+    const promoted = clans.promote(clanId);
+    if (!promoted.ok) {
+      player.sendMessage(errorMsg(promoted.error));
+      back?.();
+      return;
+    }
+
+    for (const request of requests.all()) {
+      if (request.kind === 'promote' && request.clanId === clanId) requests.withdraw(request.id);
+    }
+
+    player.sendMessage(successMsg(TEXT.menu.isNowAFullClan(promoted.value.name)));
+    for (const id of Object.keys(promoted.value.members)) {
+      players.notify(id, msg(TEXT.menu.promotedNotice(promoted.value.name)));
+    }
+    announce.clanPromoted(promoted.value.name);
+    back?.();
+  });
+}
+
+/**
  * Puts a player into a clan without an invite.
  *
  * The invite flow exists so that nobody joins a clan without agreeing to it,
@@ -308,14 +377,17 @@ function staffClanDetail(player, clanId, fromBrowser) {
       .body(
         TEXT.menu.leaderMembers(players.displayName(clan.ownerId), clans.memberCount(clan)),
       )
-      .button(TEXT.menu.membersRemoveSetRoleMake)
-      .button(TEXT.menu.warRecordsPrintAPast);
+      .button(TEXT.menu.membersRemoveSetRoleMake);
 
     /** @type {Array<() => void>} */
     const actions = [
       () => memberBrowser(player, clanId, () => staffClanDetail(player, clanId, fromBrowser)),
-      () => clanWarHistory(player, clanId),
     ];
+
+    if (settings.warsEnabled()) {
+      form.button(TEXT.menu.warRecordsPrintAPast);
+      actions.push(() => clanWarHistory(player, clanId));
+    }
 
     // Adding straight to the roster skips the invite, which exists so that
     // nobody is put in a clan without agreeing. An admin overriding that is the
@@ -324,6 +396,14 @@ function staffClanDetail(player, clanId, fromBrowser) {
     if (staff.isAdmin(player)) {
       form.button(TEXT.menu.addAMemberAdmin);
       actions.push(() => addMemberFlow(player, clanId, back));
+    }
+
+    // Promotion without the request queue, and without the membership rule the
+    // queue enforces. The flow warns before it goes through when the outpost is
+    // short, so the rule is still visible even though it does not bind.
+    if (staff.isAdmin(player) && clans.isOutpost(clan)) {
+      form.button(TEXT.menu.promoteToFullClanAdmin);
+      actions.push(() => promoteOutpostFlow(player, clanId, back));
     }
 
     form.button(TEXT.menu.disbandClan);

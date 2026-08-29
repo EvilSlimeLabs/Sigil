@@ -16,7 +16,9 @@ import * as clans from './clans.js';
 import * as staff from './staff.js';
 import * as invites from './invites.js';
 import * as requests from './requests.js';
+import * as settings from './settings.js';
 import * as wars from './wars.js';
+import * as alliances from './alliances.js';
 import * as display from './display.js';
 import * as commands from './commands.js';
 import * as ui from './ui.js';
@@ -47,6 +49,24 @@ function initWorld() {
   // sessions, or a promotion threshold raised in the settings, would go unseen
   // until the next departure — so the queue is settled against the clans that
   // actually exist before anyone opens it.
+  // A world whose war system was turned off between sessions should not come
+  // back with wars standing.
+  if (!settings.warsEnabled()) {
+    const annulled = wars.annulAllLive();
+    if (annulled.length > 0) {
+      console.log(`[sigil] wars disabled: ${annulled.length} annulled at load`);
+    }
+  }
+
+  // The alliance module also registers the veto that stops two allied clans
+  // declaring war, and ends alliances when a clan disbands.
+  if (!settings.alliancesEnabled()) {
+    const dissolved = alliances.dissolveAllLive();
+    if (dissolved.length > 0) {
+      console.log(`[sigil] alliances disabled: ${dissolved.length} dissolved at load`);
+    }
+  }
+
   const swept = requests.sweepDemotions();
   if (swept.filed > 0 || swept.cleared > 0) {
     console.log(

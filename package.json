@@ -1,12 +1,12 @@
 {
   "name": "clan-system-addon",
-  "version": "1.9.1",
+  "version": "1.10.0",
   "private": true,
   "description": "Minecraft Bedrock behavior pack providing a clan system with clan roles, staff roles, nametag and chat identity.",
   "type": "module",
   "scripts": {
     "check": "tsc --noEmit",
-    "test": "node tests/foundations.test.mjs && node tests/clans.test.mjs && node tests/display.test.mjs && node tests/governance.test.mjs && node tests/wars.test.mjs && node tests/menus.test.mjs",
+    "test": "node tests/foundations.test.mjs && node tests/clans.test.mjs && node tests/display.test.mjs && node tests/governance.test.mjs && node tests/wars.test.mjs && node tests/alliances.test.mjs && node tests/menus.test.mjs",
     "verify": "npm run check && npm run audit && npm test",
     "audit": "node tools/audit-text.mjs && node tools/text-codemod.mjs check && node tools/audit-imports.mjs",
     "build": "node tools/bundle.mjs",

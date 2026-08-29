@@ -39,6 +39,8 @@ export const TEXT = {
     chatUnavailable: `chat tags unavailable; enable the "Beta APIs" experiment`,
   },
   announce: {
+    allianceFormed: (/** @type {Value} */ a0, /** @type {Value} */ a1) => `${C.green}${a0}${C.gray} and ${C.green}${a1}${C.gray} are now allied.`,
+    allianceEnded: (/** @type {Value} */ a0, /** @type {Value} */ a1) => `${C.red}${a0}${C.gray} has broken its alliance with ${C.red}${a1}${C.gray}.`,
     hasBeenFoundedBy: (/** @type {Value} */ a0, /** @type {Value} */ a1) => `${C.aqua}${a0}${C.yellow} has been founded by ${C.white}${a1}${C.yellow}.`,
     wasRemovedFrom: (/** @type {Value} */ a0, /** @type {Value} */ a1) => `${C.white}${a0}${C.gray} was removed from ${C.aqua}${a1}${C.gray}.`,
     hasBeenDisbanded: (/** @type {Value} */ a0) => `${C.aqua}${a0}${C.red} has been disbanded.`,
@@ -235,7 +237,29 @@ request: {
     fellBelowThreshold: (/** @type {Value} */ a0, /** @type {Value} */ a1) => `${a0} has fallen below ${a1} members and cannot be promoted yet.`,
     requesterJoinedAClan: (/** @type {Value} */ a0) => `${a0} has joined a clan since requesting. The request was dropped.`,
   },
+alliance: {
+    alliancesAreDisabled: `Alliances are turned off on this server.`,
+    outpostsCannotAlly: (/** @type {Value} */ a0) => `${a0} is an outpost. Outposts cannot forge alliances on this server.`,
+    alliancesDissolvedBySetting: `Alliances were turned off; every standing alliance has been dissolved.`,
+    cannotAllyWithSelf: `A clan cannot ally with itself.`,
+    alreadyAllied: (/** @type {Value} */ a0, /** @type {Value} */ a1) => `${a0} is already allied with ${a1}.`,
+    proposalAlreadyStanding: (/** @type {Value} */ a0, /** @type {Value} */ a1) => `There is already a proposal standing between ${a0} and ${a1}.`,
+    atWarWith: (/** @type {Value} */ a0) => `You are at war with ${a0}. Settle the war before proposing an alliance.`,
+    allianceLimitReached: (/** @type {Value} */ a0, /** @type {Value} */ a1) => `${a0} already holds the maximum of ${a1} alliance(s).`,
+    proposalGone: `That proposal no longer exists.`,
+    proposalAlreadyAnswered: `That proposal has already been answered.`,
+    onlyTheAskedClanMayAnswer: `Only the clan that was asked can answer.`,
+    onlyTheProposingClanMayWithdraw: `Only the clan that proposed can withdraw it.`,
+    allianceGone: `That alliance no longer exists.`,
+    notAStandingAlliance: `That is not a standing alliance.`,
+    clanNotInAlliance: `That clan is not in this alliance.`,
+    cannotDeclareOnAnAlly: `You are allied. Break the alliance before declaring war.`,
+    onlyTheLeaderMayDeal: `Only the Leader can propose or answer an alliance.`,
+  },
+
 war: {
+    warsAreDisabled: `The war system is turned off on this server.`,
+    warsAnnulledBySetting: `Wars were turned off; every active war has been annulled.`,
     cannotWarSelf: `A clan cannot go to war with itself.`,
     outpostCannotDeclare: (/** @type {Value} */ a0) => `${a0} is an outpost. Outposts cannot declare war.`,
     outpostCannotBeTargeted: (/** @type {Value} */ a0) => `${a0} is an outpost and cannot be drawn into a war.`,
@@ -719,6 +743,58 @@ ${C.gray}operator status; not assignable`,
     deny: `${C.red}Deny`,
     yourClanIsNowCalled: (/** @type {Value} */ a0) => `${C.aqua}Your clan is now called ${a0}.`,
     isNowAFullClan: (/** @type {Value} */ a0) => `${a0} is now a full clan.`,
+    alliances: `${C.gold}Alliances`,
+    settingWarsEnabled: `${C.white}Enable the war system`,
+    warsDisabledHint: `${C.gray}Turning this off annuls every active war and hides war maps, war screens and war records.`,
+    settingAlliancesEnabled: `${C.white}Enable the alliance system`,
+    settingOutpostsMayAlly: `${C.white}Outposts may forge alliances`,
+    alliancesDisabledHint: `${C.gray}Turning this off hides the alliance menus. Alliances already agreed are kept.`,
+    allianceChanged: `${C.white}Alliance formed or ended`,
+    allianceBody: (/** @type {Value} */ a0, /** @type {Value} */ a1) => `${C.gray}${a0} standing, ${a1} awaiting your answer.`,
+    allyRowStanding: (/** @type {Value} */ a0) => `${C.aqua}${a0}
+${C.green}allied`,
+    allyRowProposedByUs: (/** @type {Value} */ a0) => `${C.aqua}${a0}
+${C.gray}proposed, awaiting their answer`,
+    allyRowProposedToUs: (/** @type {Value} */ a0) => `${C.aqua}${a0}
+${C.yellow}proposed to you`,
+    allianceDetailStanding: (/** @type {Value} */ a0) => `${C.gray}You stand allied with ${C.aqua}${a0}${C.gray}.
+${C.gray}Neither clan can declare war on the other.`,
+    allianceDetailIncoming: (/** @type {Value} */ a0) => `${C.aqua}${a0}${C.gray} has proposed an alliance.`,
+    allianceDetailOutgoing: (/** @type {Value} */ a0) => `${C.gray}Waiting on ${C.aqua}${a0}${C.gray} to answer.`,
+    proposeAnAlliance: `${C.green}Propose an Alliance`,
+    proposeAnAllianceBody: `${C.gray}Pick a clan. Their Leader decides whether to accept.`,
+    proposeConfirm: (/** @type {Value} */ a0) => `${C.gray}Propose an alliance to ${C.aqua}${a0}${C.gray}?
+
+${C.gray}Allied clans cannot declare war on each other.`,
+    propose: `Propose`,
+    noClanToAllyWith: `${C.gray}There is no clan to propose to — every other clan is already allied with you or has a proposal standing.`,
+    withdrawProposal: `${C.yellow}Withdraw Proposal`,
+    breakAlliance: `${C.red}Break Alliance`,
+    breakIt: `Break`,
+    breakAllianceConfirm: (/** @type {Value} */ a0) => `${C.gray}Break the alliance with ${C.aqua}${a0}${C.gray}?
+
+${C.gray}Either clan may declare war afterwards.`,
+    allianceProposedTo: (/** @type {Value} */ a0) => `Alliance proposed to ${a0}.`,
+    allianceProposalReceived: (/** @type {Value} */ a0) => `${C.yellow}${a0} has proposed an alliance. ${C.gray}Your Leader can answer from the clan menu.`,
+    allianceAgreedNotice: (/** @type {Value} */ a0, /** @type {Value} */ a1) => `${C.green}${a0} and ${a1} are now allied.`,
+    allianceDeclinedConfirm: (/** @type {Value} */ a0) => `Declined the alliance with ${a0}.`,
+    allianceDeclinedNotice: (/** @type {Value} */ a0) => `${C.yellow}${a0} declined your alliance proposal.`,
+    allianceProposalWithdrawn: (/** @type {Value} */ a0) => `Withdrew the alliance proposal to ${a0}.`,
+    allianceBrokenNotice: (/** @type {Value} */ a0, /** @type {Value} */ a1) => `${C.red}${a0} has broken the alliance with ${a1}.`,
+    alliancesButton: (/** @type {Value} */ a0, /** @type {Value} */ a1) => `${C.gold}Alliances
+${C.gray}${a0} standing, ${a1} to answer`,
+    promoteToFullClanAdmin: `${C.green}Promote to Full Clan
+${C.gray}admin; skips the request queue`,
+    promoteOutpostTitle: `${C.green}Promote Outpost`,
+    promoteOutpostBody: (/** @type {Value} */ a0, /** @type {Value} */ a1, /** @type {Value} */ a2) => `${C.gray}Promote ${C.aqua}${a0}${C.gray} to a full clan?
+
+${C.gray}Members: ${C.white}${a1}${C.gray}/${a2}
+${C.gray}This skips the request queue.`,
+    promoteOutpostShortBody: (/** @type {Value} */ a0, /** @type {Value} */ a1, /** @type {Value} */ a2) => `${C.gray}Promote ${C.aqua}${a0}${C.gray} to a full clan?
+
+${C.red}Below strength: ${C.white}${a1}${C.gray}/${a2}${C.red} members.
+${C.gray}A promotion request would be refused at this size. Promoting here waives that rule.`,
+    promoteAnyway: `Promote`,
     promotedNotice: (/** @type {Value} */ a0) => `${C.gold}${a0} has been promoted to a full clan. You can now go to war.`,
     creationApproved: (/** @type {Value} */ a0, /** @type {Value} */ a1) => `Approved ${a0} for ${a1}.`,
     reasonOptional: `${C.gray}Reason (optional)`,

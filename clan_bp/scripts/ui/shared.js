@@ -14,6 +14,7 @@ import { C, ROLE_COLOR_CHOICES, SYMBOL_CHOICES } from '../config.js';
 import { BRACKET_STYLES, bracketIndex } from '../brackets.js';
 import { errorMsg, truncate } from '../format.js';
 import { TEXT } from '../text.js';
+import * as settings from '../settings.js';
 import * as staff from '../staff.js';
 import * as requests from '../requests.js';
 import * as peaceful from '../peaceful.js';
@@ -210,6 +211,23 @@ export function memberLabel(clan, row) {
   const crown = row.id === clan.ownerId ? `${C.yellow}★ ` : '';
   const role = row.role ? `\n${C.gray}${row.role}` : '';
   return `${dot} ${crown}${C.white}${truncate(row.member.name, 20)}${role}`;
+}
+
+
+/**
+ * Whether the war system is on, telling the player when it is not.
+ *
+ * Every war screen and war command asks this first, so a server with wars
+ * turned off answers the same way everywhere rather than showing a screen that
+ * refuses at the last step.
+ *
+ * @param {Player} player
+ * @returns {boolean}
+ */
+export function warsOn(player) {
+  if (settings.warsEnabled()) return true;
+  player.sendMessage(errorMsg(TEXT.war.warsAreDisabled));
+  return false;
 }
 
 

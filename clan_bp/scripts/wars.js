@@ -42,7 +42,7 @@ import * as clans from './clans.js';
 import * as settings from './settings.js';
 import * as staff from './staff.js';
 import * as announce from './announce.js';
-import { onClanDisbanded } from './hooks.js';
+import { onClanDisbanded, onSettingsChanged, warDeclarationVeto } from './hooks.js';
 import { TEXT } from './text.js';
 
 /** @typedef {'pending' | 'active' | 'ended'} WarState */
@@ -349,9 +349,17 @@ export function canAnnul(player) {
  * @returns {Result<War>}
  */
 export function declare(declaring, target, declaredBy) {
+  if (!settings.warsEnabled()) {
+    return { ok: false, error: TEXT.war.warsAreDisabled };
+  }
   if (declaring.id === target.id) {
     return { ok: false, error: TEXT.war.cannotWarSelf };
   }
+
+  // Anything that can refuse a declaration for a reason this module does not
+  // know about — today, a standing alliance.
+  const vetoed = warDeclarationVeto(declaring.id, target.id);
+  if (vetoed) return { ok: false, error: vetoed };
   if (clans.isOutpost(declaring)) {
     return { ok: false, error: TEXT.war.outpostCannotDeclare(declaring.name) };
   }
@@ -785,6 +793,31 @@ export function syncScoreboard() {
 }
 
 // A clan that no longer exists forfeits whatever it was fighting.
+/**
+ * Annuls every live war. Used when the war system is switched off, so a world
+ * with wars turned off has none standing rather than a set frozen mid-fight.
+ *
+ * @param {string} [byPlayerId]
+ * @returns {War[]}
+ */
+export function annulAllLive(byPlayerId = '') {
+  return liveWars().map((war) => {
+    const result = annul(war.id, byPlayerId);
+    return result.ok ? result.value : war;
+  });
+}
+
+// Turning the war system off leaves nothing running. Idempotent, so the check
+// costs nothing on the settings writes that have no bearing on wars.
+onSettingsChanged(() => {
+  if (settings.warsEnabled()) return;
+  const ended = annulAllLive();
+  if (ended.length > 0) {
+    console.log(`[sigil] wars disabled: ${ended.length} annulled`);
+  }
+});
+
+
 onClanDisbanded((clanId) => {
   forfeitAllFor(clanId);
 });

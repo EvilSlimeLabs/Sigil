@@ -43,6 +43,7 @@ import * as announce from './announce.js';
 import * as players from './players.js';
 import * as display from './display.js';
 import { give as giveLedger, has as hasLedger, giveWarMap, hasWarMap } from './ledger.js';
+import * as settings from './settings.js';
 import * as wars from './wars.js';
 import * as warbook from './warbook.js';
 import * as peaceful from './peaceful.js';
@@ -88,6 +89,18 @@ function asPlayer(handler) {
 function firstPlayer(arg) {
   if (Array.isArray(arg)) return arg.find((entry) => entry instanceof Player);
   return arg instanceof Player ? arg : undefined;
+}
+
+/**
+ * Whether the war system is on, telling the player when it is not.
+ *
+ * @param {Player} player
+ * @returns {boolean}
+ */
+function warsAvailable(player) {
+  if (settings.warsEnabled()) return true;
+  player.sendMessage(errorMsg(TEXT.war.warsAreDisabled));
+  return false;
 }
 
 /**
@@ -654,6 +667,7 @@ function handleRename(player, name) {
  * @param {Player} player
  */
 function handleWar(player) {
+  if (!warsAvailable(player)) return;
   // Staff who are in no clan still need the war screen: annulment is the
   // escape hatch for an abandoned war, and a neutral admin is who uses it.
   if (!clans.clanOf(player.id) && wars.canAnnul(player)) {
@@ -667,6 +681,7 @@ function handleWar(player) {
  * @param {Player} player
  */
 function handleWars(player) {
+  if (!warsAvailable(player)) return;
   const active = wars.liveWars().filter((war) => war.state === 'active');
   if (active.length === 0) {
     player.sendMessage(msg(TEXT.cmd.noActiveWars));
@@ -692,6 +707,7 @@ function handlePromote(player) {
  * @param {Player} player
  */
 function handleWarMap(player) {
+  if (!warsAvailable(player)) return;
   const clan = ownClanOrWarn(player);
   if (!clan) return;
   if (!clans.isOwner(clan, player.id) && !staff.isAdmin(player)) {
@@ -726,6 +742,7 @@ function handleWarMap(player) {
  * @param {unknown} [targetArg] optional player to credit or debit
  */
 function handleWarKills(player, clanName, delta, targetArg) {
+  if (!warsAvailable(player)) return;
   if (!wars.canAdjustKills(player)) {
     player.sendMessage(errorMsg(TEXT.common.notWarAdjuster));
     return;
@@ -779,6 +796,7 @@ function handleWarKills(player, clanName, delta, targetArg) {
  * @param {string} [clanName]
  */
 function handleWarHistory(player, clanName) {
+  if (!warsAvailable(player)) return;
   const clan = clanName ? clans.clanByName(clanName) : clans.clanOf(player.id);
   if (!clan) {
     player.sendMessage(
@@ -821,6 +839,7 @@ function handleWarHistory(player, clanName) {
  * @param {string} [opponentName] narrows an ordinal shared by two wars
  */
 function handleWarBook(player, clanName, ordinalArg, opponentName) {
+  if (!warsAvailable(player)) return;
   // No arguments at all: the picker. A clan on its own: that clan's history.
   // An ordinal on its own: your own clan's war of that number.
   if (clanName === undefined && ordinalArg === undefined) {

@@ -78,6 +78,45 @@ export function clanUnderstrength(clanId) {
   }
 }
 
+/** @type {Array<(clanIdA: string, clanIdB: string) => string | undefined>} */
+const declarationVetoes = [];
+
+/**
+ * Registers a listener that can refuse a war declaration, returning the reason
+ * to show the player or `undefined` to allow it.
+ *
+ * `alliances.js` uses it to stop two allied clans declaring on each other. The
+ * alliance module already imports `wars.js`, to refuse a proposal between clans
+ * that are fighting, so the check in the other direction arrives here instead of
+ * closing the loop.
+ *
+ * A veto only applies while the module registering it has been loaded.
+ *
+ * @param {(clanIdA: string, clanIdB: string) => string | undefined} listener
+ */
+export function onWarDeclarationVeto(listener) {
+  declarationVetoes.push(listener);
+}
+
+/**
+ * Asks every veto whether these two clans may go to war.
+ *
+ * @param {string} clanIdA
+ * @param {string} clanIdB
+ * @returns {string | undefined} the first refusal, if any
+ */
+export function warDeclarationVeto(clanIdA, clanIdB) {
+  for (const listener of declarationVetoes) {
+    try {
+      const refusal = listener(clanIdA, clanIdB);
+      if (refusal) return refusal;
+    } catch (err) {
+      console.warn(`[sigil] declaration veto failed: ${err}`);
+    }
+  }
+  return undefined;
+}
+
 /** @type {Array<() => void>} */
 const settingsListeners = [];
 

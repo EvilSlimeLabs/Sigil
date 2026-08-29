@@ -13,9 +13,11 @@ import * as clans from '../clans.js';
 import * as staff from '../staff.js';
 import * as invites from '../invites.js';
 import * as requests from '../requests.js';
+import * as alliances from '../alliances.js';
 import * as settings from '../settings.js';
 import * as announce from '../announce.js';
 import * as players from '../players.js';
+import { allianceMenu } from './alliance.js';
 import {
   colorAt,
   colorIndex,
@@ -266,7 +268,19 @@ export function myClanMenu(player, back) {
 
       form.button(TEXT.menu.inviteAPlayer);
       actions.push(() => invitePicker(player, clan.id));
+    }
 
+    if (settings.alliancesEnabled()) {
+      form.button(
+        TEXT.menu.alliancesButton(
+          alliances.alliesOf(clan.id).length,
+          alliances.proposalsTo(clan.id).length,
+        ),
+      );
+      actions.push(() => allianceMenu(player, home));
+    }
+
+    if (owner) {
       form.button(TEXT.menu.clanRolesDefined(clan.roles.length));
       actions.push(() => clanRolesMenu(player, clan.id, home));
 
