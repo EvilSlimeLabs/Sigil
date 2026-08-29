@@ -85,6 +85,9 @@ export async function showAction(form, player) {
  * @property {ActionFormData} raw
  * @property {(text: string) => ActionBuilder} title
  * @property {(text: string) => ActionBuilder} body
+ * @property {(text: string) => ActionBuilder} header
+ * @property {(text: string) => ActionBuilder} label
+ * @property {() => ActionBuilder} divider
  * @property {(label: string, icon?: string) => ActionBuilder} button
  * @property {(player: import('@minecraft/server').Player) =>
  *   Promise<import('@minecraft/server-ui').ActionFormResponse>} show
@@ -117,6 +120,21 @@ export function action() {
     },
     button(label, icon) {
       form.button(buttonText(label), icon);
+      return api;
+    },
+    // Content elements render in the order they are added, so one of these
+    // placed after the last button lands below it rather than above the lot.
+    // A header is the only text an action form draws larger than body text.
+    header(text) {
+      form.header(wrapText(text));
+      return api;
+    },
+    label(text) {
+      form.label(wrapText(text));
+      return api;
+    },
+    divider() {
+      form.divider();
       return api;
     },
     show(player) {

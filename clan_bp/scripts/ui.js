@@ -253,15 +253,11 @@ export function mainMenu(player) {
     const clan = clans.clanOf(player.id);
     const pending = invites.pendingFor(player.id);
 
-    // The wordmark sits in the body rather than the title: a form title is
-    // truncated on narrow screens and is the one line that has to say what the
-    // screen is, so the branding goes where there is room for it.
     const form = action().title(TEXT.menu.clans);
     form.body(
-      `${TEXT.menu.sigilBrand}\n` +
-        (clan
-          ? TEXT.menu.youAreInAs(clan.name, clans.roleOf(clan, player.id) || 'a member')
-          : TEXT.menu.youAreNotInA2),
+      clan
+        ? TEXT.menu.youAreInAs(clan.name, clans.roleOf(clan, player.id) || 'a member')
+        : TEXT.menu.youAreNotInA2,
     );
 
     /** @type {Array<() => void>} */
@@ -312,6 +308,13 @@ export function mainMenu(player) {
       form.button(TEXT.menu.systemSettings);
       actions.push(() => systemSettingsMenu(player, home));
     }
+
+    // The wordmark goes last, under everything. It is a signature rather than
+    // a heading — the form's title is the line that has to say what the screen
+    // is — so it sits below the buttons, which is where it lands by being added
+    // after them. `header` is the only text an action form draws larger than
+    // body text, and the colour is deliberately close to the panel behind it.
+    form.divider().header(TEXT.menu.sigilBrand);
 
     const response = await show(form, player);
     if (response.canceled || response.selection === undefined) return;
