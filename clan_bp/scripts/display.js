@@ -48,6 +48,7 @@ import * as clans from './clans.js';
 import * as staff from './staff.js';
 import * as peaceful from './peaceful.js';
 import * as settings from './settings.js';
+import * as players from './players.js';
 import { onIdentityChanged } from './hooks.js';
 import { TEXT } from './text.js';
 
@@ -67,9 +68,16 @@ const lastAdminState = new Map();
 
 /**
  * Renders a title according to its `showAs`: the symbol alone, the name alone,
- * or both.
+ * or both — then wraps it in whatever brackets it carries.
  *
- * @param {{ symbol: string, name: string, color: string, showAs?: string }} title
+ * Brackets default to none, which is what every system title looked like before
+ * they were configurable, so an upgraded world reads exactly as it did. They
+ * take a colour of their own for the same reason the clan tag's do: punctuation
+ * and the thing it punctuates are separate marks, and one colour for both means
+ * you cannot quieten the brackets without draining the name.
+ *
+ * @param {{ symbol: string, name: string, color: string, showAs?: string,
+ *   brackets?: string, bracketColor?: string }} title
  * @returns {string}
  */
 function renderTitle(title) {
@@ -79,7 +87,7 @@ function renderTitle(title) {
       : title.showAs === 'both'
         ? `${title.symbol} ${title.name}`
         : title.name;
-  return `${title.color}${body}`;
+  return wrap(body, title.brackets ?? 'off', title.bracketColor ?? C.darkGray, title.color);
 }
 
 /**
@@ -104,6 +112,8 @@ export function systemTitle(player) {
     name: role.name,
     color: role.color,
     showAs: role.showAs ?? 'name',
+    brackets: role.brackets,
+    bracketColor: role.bracketColor,
   });
 }
 
@@ -382,13 +392,17 @@ export function refreshAll() {
 }
 
 /**
- * Re-checks operator status and re-renders anyone whose admin state changed.
+ * Re-checks permission levels: re-renders anyone whose admin state changed, and
+ * writes every online player's level to the registry.
  *
- * Bedrock raises no event when a player is opped or de-opped, so this is
- * polled. The check is one enum comparison per online player.
+ * Bedrock raises no event when a player's permission changes, so this is
+ * polled. Both jobs need exactly the same tick and exactly the same read, so
+ * they share one loop rather than one interval each — and the stored level is
+ * what lets a visitor stay a visitor after they log off.
  */
-export function pollAdminChanges() {
+export function pollPermissions() {
   for (const player of world.getAllPlayers()) {
+    players.recordPermission(player);
     if (lastAdminState.get(player.id) !== staff.isAdmin(player)) {
       refresh(player);
     }
@@ -412,7 +426,7 @@ let pollRunId;
  */
 export function restartAdminPolling() {
   if (pollRunId !== undefined) system.clearRun(pollRunId);
-  pollRunId = system.runInterval(pollAdminChanges, settings.opPollIntervalTicks());
+  pollRunId = system.runInterval(pollPermissions, settings.opPollIntervalTicks());
 }
 
 /**

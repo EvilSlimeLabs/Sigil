@@ -215,14 +215,24 @@ before the structural work in F, not after.
    pressure plate's worth of step. Worth confirming the painting actually stops
    there, and worth deciding whether the lost walk-through matters — reverting
    is one line per permutation.
-8. **The War Map's per-facing geometry and its hitbox.** The wall panels were
-   one model turned by `minecraft:transformation`; the hitbox came out on the
-   same side whichever face the map was hung on, so the transform is gone and
-   each facing has its own model with its quad authored in place. Worth hanging
-   one on all four walls and confirming the outline sits on the map and the art
-   faces outward on each. If a facing comes out mirrored, only that model's
-   `uv` needs flipping, and no other facing is affected — which is the point of
-   authoring them separately.
+8. **The War Map's X axis, now settled by observation.** Three separate things
+   were wrong on the east and west faces and each was found by placing a map
+   rather than by reasoning about the trait:
+
+   - The panel belongs on the *opposite* side of its cell from what the Z axis
+     predicts. Authored the way north and south are, it hung a block off its
+     wall.
+   - The block holding it up is therefore on the far side from where the panel
+     is drawn, so `SUPPORT_OFFSET` and the model disagree on purpose. Making
+     them agree tore maps down a second after they were placed.
+   - The image comes out mirrored on those two faces, so their `u` runs
+     backwards.
+
+   None of the three applies to north or south. No explanation is offered for
+   why the axes differ; the block is drawn to match what the game does with it,
+   and this note exists so the next person does not "fix" the inconsistency and
+   reintroduce all three.
+
 9. **The War Map's single-quad panels.** Each panel is one face: the other
    five are omitted from the model's `uv` map, which the documentation says
    removes them. It stays visible from both sides only because `alpha_test`

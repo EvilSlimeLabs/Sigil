@@ -47,19 +47,19 @@
     "side of the map from the viewer, and `..._north` is the panel you see",
     "when looking north-to-south at a wall to its south.",
     "",
-    "── The X axis is the other way round ─────────────────────────────────",
     "",
-    "That reasoning holds for north and south, which were right first time. It",
-    "does not hold for east and west: in a live world those two hung a block off",
-    "their wall, on the far side of the cell from the block supporting them. So",
-    "the two X-axis panels are the reverse of what the Z axis would predict —",
-    "`..._west` hugs -X and faces east, `..._east` hugs +X and faces west.",
+    "That reasoning holds for north and south, which have been right from the",
+    "start. The X axis needed two corrections on top of it, both found by placing",
+    "a map and looking at it rather than by reasoning:",
     "",
-    "This is recorded rather than derived, because it was found by placing one",
-    "and looking at it. `warmap.js` carries the same reversal in its support",
-    "offsets, and the two have to agree: a panel drawn against the correct wall",
-    "while the support check watches the opposite one would be torn down a",
-    "second after it was placed."
+    "  1. The panel belongs on the opposite side from what the Z axis predicts,",
+    "     so `..._west` is authored at -X and `..._east` at +X. Authored the",
+    "     other way they hung a block off their wall.",
+    "  2. The image comes out mirrored on those two faces, so their u runs",
+    "     backwards — `uv` starts at the far edge with a negative `uv_size`.",
+    "",
+    "Neither correction applies to north or south, and no attempt is made here to",
+    "explain why. The block is drawn to match what the game does with it."
   ],
   "minecraft:geometry": [
     {
@@ -149,7 +149,7 @@
             {
               "origin": [-7.75, 0.5, -7.5],
               "size": [0, 15, 15],
-              "uv": { "east": { "uv": [0, 0], "uv_size": [64, 64] } }
+              "uv": { "east": { "uv": [64, 0], "uv_size": [-64, 64] } }
             }
           ]
         }
@@ -173,7 +173,7 @@
             {
               "origin": [7.75, 0.5, -7.5],
               "size": [0, 15, 15],
-              "uv": { "west": { "uv": [0, 0], "uv_size": [64, 64] } }
+              "uv": { "west": { "uv": [64, 0], "uv_size": [-64, 64] } }
             }
           ]
         }

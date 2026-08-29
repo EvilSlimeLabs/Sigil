@@ -51,7 +51,10 @@ staff.assignRole(mod.id, 'mod');
 // ── Settings defaults ─────────────────────────────────────────────────────
 const defaults = settings.get();
 check('approval is required by default', defaults.requireClanApproval === true);
-check('staff may approve by default', defaults.staffCanApproveClans === true);
+check('the Mod role may approve by default', staff.roleById('mod').approveClans === true);
+check('and the Helper role may not', staff.roleById('helper').approveClans === false);
+checkEqual('an outpost holds fifteen by default', settings.memberLimit(true), 15);
+checkEqual('a full clan holds a hundred', settings.memberLimit(false), 100);
 checkEqual('operator status is re-checked every 20 seconds by default', defaults.opPollSeconds, 20);
 check('notifications are on by default', defaults.notifications.enabled === true);
 check(
@@ -81,10 +84,13 @@ check('an admin may approve requests', requests.canApprove(admin));
 check('a Mod may approve requests by default', requests.canApprove(mod));
 check('an ordinary player may not approve', !requests.canApprove(player));
 
-settings.update({ staffCanApproveClans: false });
+// The power is on the role, so revoking it is a role edit and it touches only
+// that power on only that role.
+staff.updateRole('mod', { approveClans: false });
 check('an admin can revoke Mod approval rights', !requests.canApprove(mod));
 check('the admin keeps approval rights regardless', requests.canApprove(admin));
-settings.update({ staffCanApproveClans: true });
+check('and Mod keeps its other powers', peaceful.canAssign(mod));
+staff.updateRole('mod', { approveClans: true });
 
 // ── Admins bypass the queue; everyone else files a request ────────────────
 check('an admin does not need approval', !requests.approvalRequiredFor(admin));
@@ -208,5 +214,67 @@ purge(ghost.id, ghost.name);
 checkEqual('a purged online player is redrawn as their bare name', plain(ghost.nameTag), 'Wisp');
 check('with no staff tag left', !plain(ghost.nameTag).includes('Mod'));
 check('and no clan', clans.clanOf(ghost.id) === undefined);
+
+// ── Visitors are not candidates, and operators hold Admin alone ──────────
+const visitor = new mock.Player('g9', 'Watcher');
+visitor.playerPermissionLevel = mock.PlayerPermissionLevel.Visitor;
+const founder = new mock.Player('g7', 'Founder');
+mock.__setPlayers([admin, mod, player, visitor, founder]);
+playersMod.register(visitor);
+playersMod.register(founder);
+
+check('a visitor is recognised as one', playersMod.isVisitor(visitor));
+check('and is dropped from the candidate list', !playersMod.allKnown().some((r) => r.id === visitor.id));
+check('while everyone else stays on it', playersMod.allKnown().some((r) => r.id === founder.id));
+
+const hostClan = clans.createClan(founder.id, founder.name, 'Wardens').value;
+
+// Logging off does not stop someone being a visitor: the level seen on their
+// last visit is stored, so they stay out of the pickers while away.
+mock.__setPlayers([admin, mod, player, founder]);
+check(
+  'a visitor who logs off is still filtered',
+  !playersMod.allKnown().some((r) => r.id === visitor.id),
+);
+check('and is still refused an invite', !invites.invite(
+  clans.getClan(clans.clanOf(founder.id)?.id ?? ''),
+  { id: founder.id, name: founder.name },
+  { id: visitor.id, name: visitor.name },
+).ok);
+
+// Rejoining at a higher level clears it: the record is corrected on join, so
+// a promoted visitor becomes a candidate without an admin doing anything.
+visitor.playerPermissionLevel = mock.PlayerPermissionLevel.Member;
+mock.__setPlayers([admin, mod, player, visitor, founder]);
+playersMod.register(visitor);
+check('a promoted visitor becomes a candidate again', playersMod.allKnown().some((r) => r.id === visitor.id));
+mock.__setPlayers([admin, mod, player, founder]);
+check('and stays one after logging off', playersMod.allKnown().some((r) => r.id === visitor.id));
+
+// A player never observed at all is not filtered — never having been seen is
+// not evidence of anything.
+check(
+  'a player with no permission record is left alone',
+  playersMod.lastPermission('never-seen') === undefined,
+);
+
+// Back to a visitor for the checks below.
+visitor.playerPermissionLevel = mock.PlayerPermissionLevel.Visitor;
+mock.__setPlayers([admin, mod, player, visitor, founder]);
+playersMod.register(visitor);
+
+const refused = invites.invite(
+  clans.getClan(hostClan.id),
+  { id: founder.id, name: founder.name },
+  { id: visitor.id, name: visitor.name },
+);
+check('a visitor cannot be invited', !refused.ok);
+check('and is told why', String(refused.error).includes('Visitor'));
+
+check('an operator may not hold a staff role', !staff.mayHoldRole(admin));
+check('an ordinary member may', staff.mayHoldRole(founder));
+const custom = new mock.Player('g8', 'Custom');
+custom.playerPermissionLevel = mock.PlayerPermissionLevel.Custom;
+check('and a custom-permission player may too', staff.mayHoldRole(custom));
 
 finish();

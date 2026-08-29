@@ -55,7 +55,7 @@ export function all() {
  */
 export function canAssign(player) {
   if (staff.isAdmin(player)) return true;
-  return settings.get().staffCanAssignPeaceful && staff.roleOf(player.id)?.manageClans === true;
+  return staff.hasPower(player, 'assignPeaceful');
 }
 
 /**

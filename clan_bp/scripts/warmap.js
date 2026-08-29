@@ -70,14 +70,14 @@ const SUPPORT_OFFSET = {
   down: { x: 0, y: 1, z: 0 },
   north: { x: 0, y: 0, z: 1 },
   south: { x: 0, y: 0, z: -1 },
-  // The X axis is the reverse of what the Z axis predicts. Maps hung on an
-  // east or west face came out a block off their wall, which is what looking
-  // for the support in the wrong direction produces. The geometry carries the
-  // same reversal and the two have to agree: a panel drawn against the right
-  // wall while this watched the opposite one would be torn down a second after
-  // it was placed.
-  west: { x: -1, y: 0, z: 0 },
-  east: { x: 1, y: 0, z: 0 },
+  // The X axis does not follow the Z axis, and these two offsets do not follow
+  // the geometry either. A map hung on an east or west face renders against the
+  // wall when its panel is authored on the *opposite* side to the wall, so the
+  // model and this table disagree by design: the model says where the map is
+  // drawn, this says where the block holding it up actually is. Setting them to
+  // agree is what tore maps down a second after they were placed.
+  west: { x: 1, y: 0, z: 0 },
+  east: { x: -1, y: 0, z: 0 },
 };
 
 /**

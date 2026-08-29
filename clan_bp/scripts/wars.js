@@ -315,7 +315,7 @@ export function sideTotal(war, clanId) {
  */
 export function canAdjustKills(player) {
   if (staff.isAdmin(player)) return true;
-  return settings.get().staffCanAdjustWarKills && staff.roleOf(player.id)?.manageClans === true;
+  return staff.hasPower(player, 'adjustWarKills');
 }
 
 /**
@@ -327,7 +327,7 @@ export function canAdjustKills(player) {
  */
 export function canGenerateWarBooks(player) {
   if (staff.isAdmin(player)) return true;
-  return settings.get().staffCanGenerateWarBooks && staff.roleOf(player.id)?.manageClans === true;
+  return staff.hasPower(player, 'generateWarBooks');
 }
 
 /**

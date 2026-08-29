@@ -253,11 +253,15 @@ export function mainMenu(player) {
     const clan = clans.clanOf(player.id);
     const pending = invites.pendingFor(player.id);
 
+    // The wordmark sits in the body rather than the title: a form title is
+    // truncated on narrow screens and is the one line that has to say what the
+    // screen is, so the branding goes where there is room for it.
     const form = action().title(TEXT.menu.clans);
     form.body(
-      clan
-        ? TEXT.menu.youAreInAs(clan.name, clans.roleOf(clan, player.id) || 'a member')
-        : TEXT.menu.youAreNotInA2,
+      `${TEXT.menu.sigilBrand}\n` +
+        (clan
+          ? TEXT.menu.youAreInAs(clan.name, clans.roleOf(clan, player.id) || 'a member')
+          : TEXT.menu.youAreNotInA2),
     );
 
     /** @type {Array<() => void>} */
@@ -681,7 +685,7 @@ export function myClanMenu(player, back) {
     const form = action()
       .title(`${C.aqua}${truncate(clan.name, 24)}`)
       .body(
-        TEXT.menu.membersLeaderYourRole(tierLine, clans.memberCount(clan), LIMITS.maxMembersPerClan, players.displayName(clan.ownerId), clans.roleOf(clan, player.id) || TEXT.fragment.noRole),
+        TEXT.menu.membersLeaderYourRole(tierLine, clans.memberCount(clan), clans.capacity(clan), players.displayName(clan.ownerId), clans.roleOf(clan, player.id) || TEXT.fragment.noRole),
       );
 
     /** @type {Array<() => void>} */
@@ -1471,6 +1475,7 @@ export function staffRoleMenu(player, back) {
     }
 
     const roles = staff.allRoles();
+    const admin = settings.get().display.admin;
     const form = action()
       .title(TEXT.menu.staffRoles)
       .body(
@@ -1480,7 +1485,13 @@ export function staffRoleMenu(player, back) {
       .button(TEXT.menu.assignToAPlayer)
       .button(
         TEXT.menu.assignStacksWithAnySystem(settings.get().display.peaceful.color, settings.get().display.peaceful.name),
-      );
+      )
+      // Admin is not a staff role and cannot be created, deleted or assigned —
+      // it comes from operator status. But it is a system title with a symbol,
+      // a name and a colour like the others, and those are edited here so that
+      // "change how a system role looks" is one place rather than two. The form
+      // it opens is narrower for the same reason it cannot be assigned.
+      .button(TEXT.menu.adminTitleRow(admin.color, admin.name));
     for (const role of roles) {
       form.button(
         `${role.color}${truncate(role.name, 18)}\n` +
@@ -1507,8 +1518,12 @@ export function staffRoleMenu(player, back) {
       peacefulPicker(player);
       return;
     }
+    if (response.selection === 3) {
+      adminTitleForm(player, () => staffRoleMenu(player, back));
+      return;
+    }
 
-    const role = roles[response.selection - 3];
+    const role = roles[response.selection - 4];
     if (role) staffRoleDetail(player, role.id);
     else back?.();
   });
@@ -1577,9 +1592,8 @@ function staffRoleEditor(player, roleId) {
       ROLE_COLOR_CHOICES.findIndex((choice) => choice.code === existing?.color),
     );
 
-    const response = await modal(
-      existing ? `${C.aqua}Edit ${truncate(existing.name, 16)}` : TEXT.menu.createStaffRole,
-    )
+    const response = await withBracketControls(
+      modal(existing ? `${C.aqua}Edit ${truncate(existing.name, 16)}` : TEXT.menu.createStaffRole)
       .textField('name', TEXT.menu.name, 'Moderator', { defaultValue: existing?.name ?? '' })
       .dropdown('symbol', TEXT.menu.chatTag, symbolOptions(symbols), {
         defaultValueIndex: symbolIndex(symbols, existing?.symbol ?? ''),
@@ -1595,10 +1609,30 @@ function staffRoleEditor(player, roleId) {
         TEXT.menu.showAs,
         SHOW_AS_OPTIONS.map((option) => option.label),
         { defaultValueIndex: showAsIndex(existing?.showAs) },
-      )
+      ),
+      existing ?? {},
+    )
       .toggle('manageClans', TEXT.menu.mayManageAnyClan, {
         defaultValue: existing?.manageClans ?? false,
       })
+      .divider()
+      .label(TEXT.menu.rolePowersHint)
+      .toggle('approveClans', TEXT.menu.mayApproveClanRequests, {
+        defaultValue: existing?.approveClans ?? existing?.manageClans ?? false,
+      })
+      .toggle('approvePromotions', TEXT.menu.mayApprovePromotions, {
+        defaultValue: existing?.approvePromotions ?? existing?.manageClans ?? false,
+      })
+      .toggle('adjustWarKills', TEXT.menu.mayAdjustWarKills, {
+        defaultValue: existing?.adjustWarKills ?? existing?.manageClans ?? false,
+      })
+      .toggle('generateWarBooks', TEXT.menu.mayPrintWarRecords, {
+        defaultValue: existing?.generateWarBooks ?? existing?.manageClans ?? false,
+      })
+      .toggle('assignPeaceful', TEXT.menu.mayAssignPeaceful, {
+        defaultValue: existing?.assignPeaceful ?? existing?.manageClans ?? false,
+      })
+      .divider()
       .slider('priority', TEXT.menu.priority, 0, 100, {
         defaultValue: existing?.priority ?? 25,
         valueStep: 5,
@@ -1629,7 +1663,13 @@ function staffRoleEditor(player, roleId) {
       symbol: symbol.value,
       color: ROLE_COLOR_CHOICES[response.num('color')]?.code ?? C.blue,
       showAs: showAsAt(response.num('showAs')),
+      ...bracketAnswers(response),
       manageClans: response.bool('manageClans'),
+      approveClans: response.bool('approveClans'),
+      approvePromotions: response.bool('approvePromotions'),
+      adjustWarKills: response.bool('adjustWarKills'),
+      generateWarBooks: response.bool('generateWarBooks'),
+      assignPeaceful: response.bool('assignPeaceful'),
       priority: response.num('priority', 25),
     };
 
@@ -1649,7 +1689,16 @@ function staffRoleEditor(player, roleId) {
  */
 function staffAssignPicker(player) {
   run(player, async () => {
-    const known = players.allKnown();
+    // Operators are left out rather than shown and refused: Admin is the whole
+    // permission, so a staff role on one could only be a weaker duplicate of
+    // what they already hold, and the title would never be drawn anyway.
+    // Visitors are already gone — `allKnown` drops them.
+    const known = players
+      .allKnown()
+      .filter((ref) => {
+        const online = players.onlinePlayer(ref.id);
+        return online === undefined || staff.mayHoldRole(online);
+      });
     if (known.length === 0) {
       player.sendMessage(msg(TEXT.menu.noPlayersOnRecordYet));
       staffRoleMenu(player);
@@ -1683,6 +1732,15 @@ function staffAssignPicker(player) {
  */
 function staffAssignForm(player, target) {
   run(player, async () => {
+    // Re-checked here because the picker's list is a snapshot: a player can be
+    // opped between it being drawn and this form being answered.
+    const live = players.onlinePlayer(target.id);
+    if (live && !staff.mayHoldRole(live)) {
+      player.sendMessage(errorMsg(TEXT.menu.adminsHoldNoStaffRole(target.name)));
+      staffRoleMenu(player);
+      return;
+    }
+
     const roles = staff.allRoles();
     const options = [TEXT.fragment.pickNoStaffRole, ...roles.map((r) => `${r.color}${r.name}`)];
     const current = staff.roleOf(target.id);
@@ -1917,28 +1975,25 @@ export function settingsMenu(player) {
       .toggle('requireApproval', TEXT.menu.requireAdminApprovalToCreate, {
         defaultValue: current.requireClanApproval,
       })
-      .toggle('staffApproveClans', TEXT.menu.clanManagingStaffRolesMay, {
-        defaultValue: current.staffCanApproveClans,
-      })
       .divider()
-      .header(TEXT.menu.outposts)
-      .toggle('staffApprovePromotions', TEXT.menu.staffRolesMayApprovePromotions, {
-        defaultValue: current.staffCanApprovePromotions,
-      })
+      .header(TEXT.menu.membership)
+      .label(TEXT.menu.memberCapsHint)
       .slider('promotionMembers', TEXT.menu.membersNeededToRequestPromotion, 1, 25, {
         defaultValue: settings.promotionThreshold(),
+        valueStep: 1,
+      })
+      .slider('maxOutpost', TEXT.menu.maxMembersOutpost, 1, LIMITS.maxMembersPerClan, {
+        defaultValue: settings.memberLimit(true),
+        valueStep: 1,
+      })
+      .slider('maxClan', TEXT.menu.maxMembersClan, 1, LIMITS.maxMembersPerClan, {
+        defaultValue: settings.memberLimit(false),
         valueStep: 1,
       })
       .divider()
       .header(TEXT.menu.wars)
       .toggle('warNeedsAcceptance', TEXT.menu.declarationsMustBeAccepted, {
         defaultValue: current.warRequiresAcceptance,
-      })
-      .toggle('staffAdjustKills', TEXT.menu.staffRolesMayAdjustWar, {
-        defaultValue: current.staffCanAdjustWarKills,
-      })
-      .toggle('staffWarBooks', TEXT.menu.staffRolesMayPrintAny, {
-        defaultValue: current.staffCanGenerateWarBooks,
       })
       .slider('maxWars', TEXT.menu.maxActiveWarsPerClan, 0, 20, {
         defaultValue: Math.max(0, Math.round(current.maxActiveWarsPerClan)),
@@ -1970,12 +2025,10 @@ export function settingsMenu(player) {
 
     settings.update({
       requireClanApproval: response.bool('requireApproval'),
-      staffCanApproveClans: response.bool('staffApproveClans'),
-      staffCanApprovePromotions: response.bool('staffApprovePromotions'),
       outpostPromotionMembers: response.num('promotionMembers', current.outpostPromotionMembers),
+      maxOutpostMembers: response.num('maxOutpost', current.maxOutpostMembers),
+      maxClanMembers: response.num('maxClan', current.maxClanMembers),
       warRequiresAcceptance: response.bool('warNeedsAcceptance'),
-      staffCanAdjustWarKills: response.bool('staffAdjustKills'),
-      staffCanGenerateWarBooks: response.bool('staffWarBooks'),
       maxActiveWarsPerClan: response.num('maxWars', current.maxActiveWarsPerClan),
       opPollSeconds: nextPoll,
       notifications: {
@@ -3204,6 +3257,44 @@ function symbolAt(choices, value) {
   return choices[Number(value ?? 0)]?.symbol ?? choices[0].symbol;
 }
 
+/**
+ * Adds the bracket style and colour controls a system title carries.
+ *
+ * Three forms want exactly this pair — staff roles, the Admin title and the
+ * Peaceful marker — and they have to agree on the keys they read back, so the
+ * pair is built in one place rather than copied three times.
+ *
+ * @template {{ dropdown: (key: string, label: string, items: string[], options?: any) => T }} T
+ * @param {T} form
+ * @param {{ brackets?: string, bracketColor?: string }} current
+ * @returns {T}
+ */
+function withBracketControls(form, current) {
+  return form
+    .dropdown(
+      'brackets',
+      TEXT.menu.titleBrackets,
+      BRACKET_STYLES.map((style) => style.label),
+      { defaultValueIndex: bracketIndex(current.brackets ?? 'off') },
+    )
+    .dropdown('bracketColor', TEXT.menu.titleBracketColour, colorOptions(), {
+      defaultValueIndex: colorIndex(current.bracketColor ?? C.darkGray),
+    });
+}
+
+/**
+ * Reads that pair back.
+ *
+ * @param {import('./forms.js').ModalResult} response
+ * @returns {{ brackets: string, bracketColor: string }}
+ */
+function bracketAnswers(response) {
+  return {
+    brackets: BRACKET_STYLES[response.num('brackets')]?.id ?? 'off',
+    bracketColor: colorAt(response.num('bracketColor')),
+  };
+}
+
 /** How a title can be rendered, in dropdown order. */
 const SHOW_AS_OPTIONS = [
   { id: 'symbol', label: TEXT.menu.symbolOnly },
@@ -3258,7 +3349,6 @@ export function displaySettingsMenu(player, back) {
       .body(TEXT.menu.howClanAndSystemIdentity)
       .button(TEXT.menu.nametagsRoleOrderBrackets)
       .button(TEXT.menu.chatRoleOrder)
-      .button(TEXT.menu.adminTitleSymbolNameColour)
       .button(TEXT.menu.peacefulRoleSymbolVisibilityOrder)
       .button(TEXT.menu.coloursClanRoleOutpost);
 
@@ -3266,7 +3356,6 @@ export function displaySettingsMenu(player, back) {
     const actions = [
       () => nametagSettingsForm(player),
       () => chatSettingsForm(player),
-      () => adminTitleForm(player),
       () => peacefulSettingsForm(player),
       () => colorSettingsForm(player),
     ];
@@ -3421,18 +3510,29 @@ function chatSettingsForm(player) {
 }
 
 /**
- * The Admin title. Admin is not a staff role — it is derived from operator
- * status — so its symbol, name and colour live here rather than in the staff
- * role editor, even though they are edited for the same reason.
+ * The Admin title.
+ *
+ * Admin is not a staff role: it comes from operator status, so it cannot be
+ * created, deleted or assigned, and the form is correspondingly narrower — a
+ * symbol, a name, a colour and how they are shown, with none of the powers a
+ * staff role carries because an admin already holds all of them.
+ *
+ * It is still edited from the staff role list, beside the roles it sits above.
+ * Splitting "how a system title looks" across two screens on the grounds that
+ * one of them is not technically a role was a distinction that meant something
+ * to the code and nothing to the person looking for it.
  *
  * @param {Player} player
+ * @param {() => void} [back]
  */
-function adminTitleForm(player) {
+function adminTitleForm(player, back) {
   run(player, async () => {
     const { admin } = settings.get().display;
+    const leave = back ?? (() => displaySettingsMenu(player));
     const symbols = symbolChoicesFor(admin.symbol);
 
-    const response = await modal(TEXT.menu.adminTitle)
+    const response = await withBracketControls(
+      modal(TEXT.menu.adminTitle)
       .label(TEXT.menu.adminIsOperatorStatusAnd)
       .dropdown('symbol', TEXT.menu.symbol, symbolOptions(symbols), {
         defaultValueIndex: symbolIndex(symbols, admin.symbol),
@@ -3446,12 +3546,14 @@ function adminTitleForm(player) {
         TEXT.menu.showAs,
         SHOW_AS_OPTIONS.map((option) => option.label),
         { defaultValueIndex: showAsIndex(admin.showAs) },
-      )
+      ),
+      admin,
+    )
       .submitButton(TEXT.menu.save)
       .show(player);
 
     if (response.canceled) {
-      displaySettingsMenu(player);
+      leave();
       return;
     }
 
@@ -3459,12 +3561,12 @@ function adminTitleForm(player) {
     const cleanName = validateStaffRoleName(response.str('name'));
     if (!cleanSymbol.ok) {
       player.sendMessage(errorMsg(cleanSymbol.error));
-      displaySettingsMenu(player);
+      leave();
       return;
     }
     if (!cleanName.ok) {
       player.sendMessage(errorMsg(cleanName.error));
-      displaySettingsMenu(player);
+      leave();
       return;
     }
 
@@ -3475,13 +3577,14 @@ function adminTitleForm(player) {
           name: cleanName.value,
           color: colorAt(response.num('color')),
           showAs: /** @type {'symbol' | 'name' | 'both'} */ (showAsAt(response.num('showAs'))),
+          ...bracketAnswers(response),
         },
       },
     });
 
     display.refreshAll();
     player.sendMessage(successMsg(TEXT.menu.adminTitleUpdated));
-    displaySettingsMenu(player);
+    leave();
   });
 }
 
@@ -3519,10 +3622,6 @@ function peacefulSettingsForm(player) {
           ),
         },
       )
-      .divider()
-      .toggle('staffMayAssign', TEXT.menu.clanManagingStaffRolesMay2, {
-        defaultValue: config.staffCanAssignPeaceful,
-      })
       .submitButton(TEXT.menu.save)
       .show(player);
 
@@ -3545,13 +3644,13 @@ function peacefulSettingsForm(player) {
     }
 
     settings.update({
-      staffCanAssignPeaceful: response.bool('staffMayAssign'),
       display: {
         peaceful: {
           symbol: cleanSymbol.value,
           name: cleanName.value,
           color: colorAt(response.num('color')),
           showAs: /** @type {'symbol' | 'name' | 'both'} */ (showAsAt(response.num('showAs'))),
+          ...bracketAnswers(response),
           visibility: /** @type {'both' | 'nametag' | 'chat' | 'none'} */ (
             VISIBILITY_OPTIONS[response.num('visibility')]?.id ?? 'both'
           ),

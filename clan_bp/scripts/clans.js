@@ -21,6 +21,7 @@
  */
 
 import { KEY, LIMITS, LEADER_ROLE, TIER, ROLE_COLOR_CHOICES } from './config.js';
+import * as settings from './settings.js';
 import { getString, setString, remove, getJson, setJson, setJsonGuarded, now } from './storage.js';
 import { normalizeKey, validateClanName, validateRoleName } from './format.js';
 import { identityChanged, clanDisbanded } from './hooks.js';
@@ -243,7 +244,22 @@ export function memberCount(clan) {
  * @returns {boolean}
  */
 export function isFull(clan) {
-  return memberCount(clan) >= LIMITS.maxMembersPerClan;
+  return memberCount(clan) >= capacity(clan);
+}
+
+/**
+ * How many members this clan may hold, which depends on its tier: an outpost is
+ * meant to be small, and promotion is what lifts the cap.
+ *
+ * Both numbers are admin settings, clamped by `settings.memberLimit` against
+ * {@link LIMITS.maxMembersPerClan} — that ceiling is not a preference but a
+ * consequence of a clan record being one dynamic property with a size limit.
+ *
+ * @param {Clan} clan
+ * @returns {number}
+ */
+export function capacity(clan) {
+  return settings.memberLimit(isOutpost(clan));
 }
 
 /**
@@ -309,7 +325,7 @@ export function addMember(clanId, playerId, playerName) {
     return { ok: false, error: TEXT.clan.isAlreadyInAnotherClan(playerName) };
   }
   if (isFull(clan)) {
-    return { ok: false, error: TEXT.clan.isFullMembers(clan.name, LIMITS.maxMembersPerClan) };
+    return { ok: false, error: TEXT.clan.isFullMembers(clan.name, capacity(clan)) };
   }
 
   clan.members[playerId] = { name: playerName, role: '', joinedAt: now() };

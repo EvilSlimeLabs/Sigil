@@ -186,7 +186,7 @@ export function modal(title) {
      * @param {string} text
      */
     header(text) {
-      form.header(text);
+      form.header(wrapText(text));
       slots.push(null);
       return api;
     },
@@ -212,7 +212,7 @@ export function modal(title) {
      * @param {import('@minecraft/server-ui').ModalFormDataToggleOptions} [options]
      */
     toggle(key, label, options) {
-      form.toggle(label, options);
+      form.toggle(wrapText(label), options);
       slots.push(key);
       return api;
     },
@@ -224,7 +224,7 @@ export function modal(title) {
      * @param {import('@minecraft/server-ui').ModalFormDataSliderOptions} [options]
      */
     slider(key, label, min, max, options) {
-      form.slider(label, min, max, options);
+      form.slider(wrapText(label), min, max, options);
       slots.push(key);
       return api;
     },
@@ -235,7 +235,7 @@ export function modal(title) {
      * @param {import('@minecraft/server-ui').ModalFormDataDropdownOptions} [options]
      */
     dropdown(key, label, items, options) {
-      form.dropdown(label, items, options);
+      form.dropdown(wrapText(label), items, options);
       slots.push(key);
       return api;
     },
@@ -246,7 +246,7 @@ export function modal(title) {
      * @param {import('@minecraft/server-ui').ModalFormDataTextFieldOptions} [options]
      */
     textField(key, label, placeholder, options) {
-      form.textField(label, placeholder, options);
+      form.textField(wrapText(label), placeholder, options);
       slots.push(key);
       return api;
     },

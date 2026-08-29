@@ -8,7 +8,7 @@
  * are currently offline.
  */
 
-import { world } from '@minecraft/server';
+import { world, PlayerPermissionLevel } from '@minecraft/server';
 import { KEY } from './config.js';
 import { getString, setString, remove, idsWithPrefix } from './storage.js';
 import { normalizeKey } from './format.js';
@@ -30,6 +30,8 @@ import { TEXT } from './text.js';
  * @param {import('@minecraft/server').Player} player
  */
 export function register(player) {
+  recordPermission(player);
+
   const previous = getString(KEY.playerName + player.id);
   if (previous === player.name) return;
 
@@ -103,17 +105,85 @@ export function ref(playerId) {
 }
 
 /**
- * Every player the world has ever seen, sorted by name. Backs the "pick a
- * player" pickers in the UI, which must be able to reach offline players.
+ * Whether this player is a Visitor — the permission level that can look at the
+ * world but not touch it.
+ *
+ * A visitor cannot build, mine or interact, so they cannot take part in
+ * anything a clan does. Offering one as a candidate to invite, promote or
+ * assign a role to is offering something that cannot work.
+ *
+ * @param {import('@minecraft/server').Player} player
+ * @returns {boolean}
+ */
+export function isVisitor(player) {
+  return player.playerPermissionLevel === PlayerPermissionLevel.Visitor;
+}
+
+/**
+ * Stores a player's current permission level.
+ *
+ * Called on join and again on every poll tick, which is what keeps the record
+ * true for someone whose level is changed while they are connected.
+ *
+ * @param {import('@minecraft/server').Player} player
+ */
+export function recordPermission(player) {
+  const level = String(player.playerPermissionLevel);
+  if (getString(KEY.playerPermission + player.id) === level) return;
+  setString(KEY.playerPermission + player.id, level);
+}
+
+/**
+ * The last permission level seen for a player, or `undefined` for someone who
+ * has never been observed.
+ *
+ * @param {string} playerId
+ * @returns {number | undefined}
+ */
+export function lastPermission(playerId) {
+  const stored = getString(KEY.playerPermission + playerId);
+  if (stored === undefined) return undefined;
+  const level = Number(stored);
+  return Number.isFinite(level) ? level : undefined;
+}
+
+/**
+ * Whether a player should be treated as a Visitor, online or not.
+ *
+ * A live reading wins when they are present. Otherwise the stored level stands
+ * in: logging off does not stop someone being a visitor, and without the record
+ * they would reappear in every picker they were meant to be kept out of. A
+ * player with no record at all is not filtered — never having been seen is not
+ * evidence of anything, and excluding them would hide players the pickers exist
+ * to reach.
+ *
+ * The record is corrected the moment they next join, so a visitor who is
+ * promoted becomes a candidate again without an admin doing anything.
+ *
+ * @param {string} playerId
+ * @returns {boolean}
+ */
+export function isKnownVisitor(playerId) {
+  const player = onlinePlayer(playerId);
+  if (player) return isVisitor(player);
+  return lastPermission(playerId) === PlayerPermissionLevel.Visitor;
+}
+
+/**
+ * Every player the world has ever seen, sorted by name, minus anyone currently
+ * connected as a Visitor. Backs the "pick a player" pickers in the UI, which
+ * must be able to reach offline players.
  *
  * @returns {PlayerRef[]}
  */
 export function allKnown() {
   const onlineIds = new Set(world.getAllPlayers().map((p) => p.id));
-  const refs = idsWithPrefix(KEY.playerName).map((key) => {
-    const id = key.slice(KEY.playerName.length);
-    return { id, name: getString(key) ?? TEXT.fragment.unknownPlayer, online: onlineIds.has(id) };
-  });
+  const refs = idsWithPrefix(KEY.playerName)
+    .map((key) => {
+      const id = key.slice(KEY.playerName.length);
+      return { id, name: getString(key) ?? TEXT.fragment.unknownPlayer, online: onlineIds.has(id) };
+    })
+    .filter((entry) => !isKnownVisitor(entry.id));
   refs.sort((a, b) => a.name.localeCompare(b.name));
   return refs;
 }

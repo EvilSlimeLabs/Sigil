@@ -101,6 +101,16 @@ export const KEY = {
   playerName: 'clan:pn:',
   /** `clan:pi:<lowercase player name>` -> playerId */
   playerId: 'clan:pi:',
+  /**
+   * `clan:pp:<playerId>` -> last seen `PlayerPermissionLevel`, as a number.
+   *
+   * Permission level can only be read for a player who is present, so without
+   * a record of it a visitor who logs off becomes indistinguishable from anyone
+   * else — and reappears in every picker they were meant to be kept out of.
+   * Written on join and refreshed by the same poll that watches for op changes,
+   * so it is never more than one poll interval stale for anyone online.
+   */
+  playerPermission: 'clan:pp:',
   /** `clan:inv:<playerId>` -> JSON array of pending invites for that player */
   invites: 'clan:inv:',
   settings: 'clan:settings',
@@ -205,14 +215,33 @@ export const INVITE_TTL_SECONDS = 7 * 24 * 60 * 60;
  * A staff role: the script-managed layer that sits between "ordinary player"
  * and "operator". Never confers admin.
  *
+ * Each power is carried by the role rather than by a matching switch in the
+ * add-on settings. It used to take both — a role with `manageClans`, and a
+ * global `staffCanApproveClans` — which meant a server could not have one role
+ * that reviews clans and another that only adjusts war kills, because the
+ * switches applied to every clan-managing role at once. Putting them here makes
+ * a role a real set of powers instead of a label with a master override
+ * somewhere else.
+ *
+ * The five specific powers are read through {@link StaffRole} accessors in
+ * `staff.js`, which fall back to `manageClans` when a stored role predates
+ * them — so a world upgrading in keeps exactly the powers it had.
+ *
  * @typedef {object} StaffRole
  * @property {string} id            stable lowercase identifier
  * @property {string} name          display name
  * @property {string} symbol        short chat tag body, e.g. `Mod`
  * @property {string} color         a formatting code from {@link C}
  * @property {boolean} manageClans  may act on any clan
+ * @property {boolean} [approveClans]      may approve clan creation requests
+ * @property {boolean} [approvePromotions] may approve outpost promotions
+ * @property {boolean} [adjustWarKills]    may correct a war's kill totals
+ * @property {boolean} [generateWarBooks]  may print any clan's war record
+ * @property {boolean} [assignPeaceful]    may grant or clear the Peaceful marker
  * @property {number} priority      higher wins when sorting; display only
  * @property {string} [showAs]      `symbol`, `name` or `both`; defaults to `name`
+ * @property {string} [brackets]    a bracket style id; defaults to none
+ * @property {string} [bracketColor] colour for those brackets
  * @property {boolean} [builtin]    shipped by default; cannot be deleted
  */
 
@@ -229,6 +258,11 @@ export const DEFAULT_STAFF_ROLES = [
     symbol: '⚔',
     color: C.blue,
     manageClans: true,
+    approveClans: true,
+    approvePromotions: true,
+    adjustWarKills: true,
+    generateWarBooks: true,
+    assignPeaceful: true,
     priority: 50,
     showAs: 'name',
     builtin: true,
@@ -239,6 +273,11 @@ export const DEFAULT_STAFF_ROLES = [
     symbol: '❖',
     color: C.green,
     manageClans: false,
+    approveClans: false,
+    approvePromotions: false,
+    adjustWarKills: false,
+    generateWarBooks: false,
+    assignPeaceful: false,
     priority: 10,
     showAs: 'name',
     builtin: true,

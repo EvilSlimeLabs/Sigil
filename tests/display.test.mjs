@@ -20,6 +20,9 @@ prepare([
   'staff.js',
   'peaceful.js',
   'clans.js',
+  'invites.js',
+  'requests.js',
+  'announce.js',
   'hooks.js',
   'display.js',
 ]);
@@ -32,6 +35,7 @@ const settings = await load('settings.js');
 const staff = await load('staff.js');
 const peaceful = await load('peaceful.js');
 const clans = await load('clans.js');
+const requests = await load('requests.js');
 const display = await load('display.js');
 
 const admin = new mock.Player('a1', 'Steve', true);
@@ -174,9 +178,19 @@ check('an admin may assign Peaceful', peaceful.canAssign(admin));
 staff.assignRole(plainPlayer.id, 'helper');
 check('a role without clan management may not', !peaceful.canAssign(plainPlayer));
 check('a clan-managing role may by default', peaceful.canAssign(member));
-settings.update({ staffCanAssignPeaceful: false });
-check('an admin can revoke that', !peaceful.canAssign(member));
-settings.update({ staffCanAssignPeaceful: true });
+
+// The power lives on the role now, not on a switch that covered every role at
+// once. Revoking it from Mod leaves Mod's other powers alone.
+staff.updateRole('mod', { assignPeaceful: false });
+check('an admin can revoke it from the role', !peaceful.canAssign(member));
+check('and the role keeps its other powers', requests.canApprove(member));
+staff.updateRole('mod', { assignPeaceful: true });
+check('and granting it back restores it', peaceful.canAssign(member));
+
+// A role stored before these fields existed answers undefined, and falls back
+// to manageClans — which is exactly what such a role could do before.
+staff.updateRole('mod', { assignPeaceful: undefined });
+check('a role predating the field falls back to clan management', peaceful.canAssign(member));
 staff.assignRole(plainPlayer.id, undefined);
 
 // ── Colours are settings, and the tier picks which one applies ────────────
@@ -230,6 +244,23 @@ settings.update({ display: { chat: { nameOrder: 30 } } });
 checkEqual('and moving the name back restores it', plain(display.chatSuffixFor(member)), '');
 check('with the tag in front again', plain(display.chatPrefixFor(member)).includes('[Wolves]'));
 
+// ── A system title can carry brackets of its own ──────────────────────────
+// Off by default, which is how every world that predates the setting looks.
+staff.assignRole(member.id, 'mod');
+check('a staff title has no brackets by default', !plain(display.systemTitle(member)).includes('['));
+staff.updateRole('mod', { brackets: 'square', bracketColor: '§4' });
+checkEqual('turning them on wraps the title', plain(display.systemTitle(member)), '[Mod]');
+check('and the brackets take their own colour', display.systemTitle(member).includes('§4['));
+check('while the title keeps its own', display.systemTitle(member).includes('§9Mod'));
+staff.updateRole('mod', { brackets: 'off' });
+checkEqual('and turning them off restores it', plain(display.systemTitle(member)), 'Mod');
+staff.assignRole(member.id, undefined);
+
+// The Admin title is the same kind of thing and takes the same treatment.
+settings.update({ display: { admin: { brackets: 'angled', bracketColor: '§6' } } });
+checkEqual('the Admin title brackets too', plain(display.systemTitle(admin)), '<✦>');
+settings.update({ display: { admin: { brackets: 'off' } } });
+
 // ── Brackets carry their own colour, apart from what they enclose ─────────
 clans.setMemberRole(wolves.id, member.id, 'Officer');
 settings.update({
@@ -267,10 +298,10 @@ peaceful.set(admin.id, false);
 staff.assignRole(admin.id, undefined);
 display.refresh(admin);
 admin.playerPermissionLevel = mock.PlayerPermissionLevel.Member;
-display.pollAdminChanges();
+display.pollPermissions();
 checkEqual('de-opping drops the admin title', plain(admin.chatNamePrefix), '[Wolves|Leader] ');
 admin.playerPermissionLevel = mock.PlayerPermissionLevel.Operator;
-display.pollAdminChanges();
+display.pollPermissions();
 checkEqual('re-opping restores it', plain(admin.chatNamePrefix), '✦ [Wolves|Leader] ');
 
 checkEqual('the property strategy was detected', display.chatStatus(), 'chat tags active (Player.chatNamePrefix)');

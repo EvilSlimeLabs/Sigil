@@ -46,14 +46,14 @@ import { TEXT } from './text.js';
  * Whether a player may approve or deny clan-creation requests.
  *
  * Admins always may. A clan-managing staff role may too, unless an admin has
- * switched `staffCanApproveClans` off.
+ * turned that power off on their role.
  *
  * @param {import('@minecraft/server').Player} player
  * @returns {boolean}
  */
 export function canApprove(player) {
   if (staff.isAdmin(player)) return true;
-  return settings.get().staffCanApproveClans && staff.roleOf(player.id)?.manageClans === true;
+  return staff.hasPower(player, 'approveClans');
 }
 
 /**
@@ -65,7 +65,7 @@ export function canApprove(player) {
  */
 export function canApprovePromotions(player) {
   if (staff.isAdmin(player)) return true;
-  return settings.get().staffCanApprovePromotions && staff.roleOf(player.id)?.manageClans === true;
+  return staff.hasPower(player, 'approvePromotions');
 }
 
 /**

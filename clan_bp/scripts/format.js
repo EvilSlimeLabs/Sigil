@@ -203,11 +203,16 @@ export function buttonText(label) {
  * Text the caller has already broken is respected: each existing line is
  * wrapped on its own.
  *
+ * The width is deliberately short of what the panel can physically fit. Left to
+ * itself the engine runs a label right up to the scroll bar, so the text has a
+ * margin on the left and none on the right and the whole form looks wrong;
+ * breaking a few characters early buys the missing margin back.
+ *
  * @param {string} text
  * @param {number} [width] visible characters a line may hold
  * @returns {string}
  */
-export function wrapText(text, width = 34) {
+export function wrapText(text, width = 30) {
   return String(text)
     .split('\n')
     .map((line) => wrapLine(line, width))

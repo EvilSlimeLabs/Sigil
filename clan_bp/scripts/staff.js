@@ -198,6 +198,55 @@ export function canManageAnyClan(player) {
 }
 
 /**
+ * Whether this player may be given a staff role at all.
+ *
+ * Operators may not. Admin is not one rank among several — it is the whole
+ * permission, granted by the server rather than by this add-on, and a staff
+ * role on top of it could only ever be a weaker duplicate of powers already
+ * held. The displayed title already prefers Admin, so a role underneath it
+ * would be invisible as well as pointless.
+ *
+ * Every other permission level may hold any role. A Visitor is never offered
+ * one because they are filtered out of the picker before this is reached.
+ *
+ * @param {Player} player
+ * @returns {boolean}
+ */
+export function mayHoldRole(player) {
+  return !isAdmin(player);
+}
+
+/**
+ * The five powers a staff role can carry beyond plain clan management.
+ *
+ * @typedef {'approveClans' | 'approvePromotions' | 'adjustWarKills'
+ *   | 'generateWarBooks' | 'assignPeaceful'} StaffPower
+ */
+
+/**
+ * Whether a player holds one specific staff power.
+ *
+ * Admins hold every power by definition, and never through a role — being an
+ * operator is the whole permission, so no role lookup happens for them.
+ *
+ * A role stored before these fields existed answers `undefined`, and falls back
+ * to `manageClans`. That is exactly the behaviour such a role had: the powers
+ * used to be global switches that all defaulted on, so any clan-managing role
+ * could do all five. Upgrading a world therefore changes nothing until an admin
+ * edits a role.
+ *
+ * @param {Player} player
+ * @param {StaffPower} power
+ * @returns {boolean}
+ */
+export function hasPower(player, power) {
+  if (isAdmin(player)) return true;
+  const role = roleOf(player.id);
+  if (!role) return false;
+  return (role[power] ?? role.manageClans) === true;
+}
+
+/**
  * May this player edit the staff role system itself? Admins only, so that a
  * clan-managing staff role cannot escalate itself.
  *

@@ -54,9 +54,14 @@ settings.update({ requireClanApproval: false, outpostPromotionMembers: 2 });
 /** Creates a promoted, war-capable clan. */
 function fullClan(leader, name, members) {
   const clan = clans.createClan(leader.id, leader.name, name).value;
-  for (const m of members) clans.addMember(clan.id, m.id, m.name);
+  // Enough to qualify for promotion, then promote, then the rest. An outpost
+  // holds fewer members than a full clan, so a large roster cannot be assembled
+  // before the promotion that lifts the cap — which is the point of the two
+  // limits being separate.
+  for (const m of members.slice(0, 4)) clans.addMember(clan.id, m.id, m.name);
   const req = requests.filePromotion({ id: leader.id, name: leader.name }, clans.getClan(clan.id));
   requests.approve(req.value.id);
+  for (const m of members.slice(4)) clans.addMember(clan.id, m.id, m.name);
   return clans.getClan(clan.id);
 }
 
@@ -468,9 +473,10 @@ check('and the omission is stated', hugePages[hugePages.length - 1].includes('om
 check('an admin may print any clan record', wars.canGenerateWarBooks(admin));
 staff.assignRole(memberA.id, 'mod');
 check('a Mod may by default', wars.canGenerateWarBooks(memberA));
-settings.update({ staffCanGenerateWarBooks: false });
-check('an admin can revoke that', !wars.canGenerateWarBooks(memberA));
-settings.update({ staffCanGenerateWarBooks: true });
+staff.updateRole('mod', { generateWarBooks: false });
+check('an admin can revoke it from the role', !wars.canGenerateWarBooks(memberA));
+check('and the role keeps its other powers', wars.canAdjustKills(memberA));
+staff.updateRole('mod', { generateWarBooks: true });
 check('an ordinary player may not', !wars.canGenerateWarBooks(outsider));
 
 finish();

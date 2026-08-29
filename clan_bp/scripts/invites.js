@@ -18,6 +18,7 @@
 import { KEY, LIMITS, INVITE_TTL_SECONDS } from './config.js';
 import { getJson, setJson, remove, now, idsWithPrefix } from './storage.js';
 import * as clans from './clans.js';
+import * as players from './players.js';
 import { TEXT } from './text.js';
 
 /**
@@ -140,6 +141,12 @@ export function invite(clan, from, to) {
   if (to.id === from.id) {
     return { ok: false, error: TEXT.invite.youCannotInviteYourself };
   }
+  // Checked in the domain rather than in each caller: the picker filters
+  // visitors out of its list, but `/clan:invite` takes a player selector and
+  // would otherwise walk straight past that filter.
+  if (players.isKnownVisitor(to.id)) {
+    return { ok: false, error: TEXT.invite.cannotInviteAVisitor(to.name) };
+  }
   if (clans.isMember(clan, to.id)) {
     return { ok: false, error: TEXT.invite.isAlreadyIn(to.name, clan.name) };
   }
@@ -147,7 +154,7 @@ export function invite(clan, from, to) {
     return { ok: false, error: TEXT.invite.isAlreadyInAnotherClan(to.name) };
   }
   if (clans.isFull(clan)) {
-    return { ok: false, error: TEXT.invite.isFullMembers(clan.name, LIMITS.maxMembersPerClan) };
+    return { ok: false, error: TEXT.invite.isFullMembers(clan.name, clans.capacity(clan)) };
   }
 
   const pending = pendingFor(to.id);

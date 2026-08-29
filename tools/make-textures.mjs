@@ -224,7 +224,11 @@ function makeWarMap() {
     draw(cx - i, cy + i, MAP.inkSoft);
     draw(cx + i, cy + i, MAP.inkSoft);
   }
-  triangle(c, [cx, cy - 7], [cx - 2, cy - 3], [cx + 2, cy - 3], MAP.red);
+  // The north mark. Kept deliberately small: drawn any larger it outweighs the
+  // rose it sits on, and because the rose's arm is one pixel wide the mark has
+  // to be symmetric about that pixel's centre or the whole rose reads as
+  // off-centre. Hence the half-pixel offsets rather than round numbers.
+  triangle(c, [cx + 0.5, cy - 5.8], [cx - 1, cy - 3], [cx + 2, cy - 3], MAP.red);
 
   // 12. Fold creases, then coffee-coloured stains.
   for (let y = 0; y < S; y++) shade(c, 31, y, -14);

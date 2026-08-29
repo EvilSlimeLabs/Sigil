@@ -269,12 +269,10 @@ settings.update({ requireClanApproval: true });
 await open(() => {
   ui2.__answer({
     requireApproval: false,
-    staffApproveClans: true,
-    staffApprovePromotions: true,
     promotionMembers: 7,
+    maxOutpost: 12,
+    maxClan: 60,
     warNeedsAcceptance: false,
-    staffAdjustKills: true,
-    staffWarBooks: true,
     maxWars: 3,
     notifyEnabled: true,
     notifyCreated: true,
@@ -295,6 +293,8 @@ checkEqual('a slider mid-form landed correctly', saved.outpostPromotionMembers, 
 check('a toggle after two dividers landed correctly', saved.warRequiresAcceptance === false);
 checkEqual('the last slider landed correctly', saved.opPollSeconds, 45);
 checkEqual('and the war cap', saved.maxActiveWarsPerClan, 3);
+checkEqual('and the outpost member cap', saved.maxOutpostMembers, 12);
+checkEqual('and the full-clan member cap', saved.maxClanMembers, 60);
 
 // The same form under the other convention: non-inputs contribute nothing.
 // The resolver works this out from the response length, so both must land.
@@ -303,12 +303,10 @@ settings.update({ requireClanApproval: true, outpostPromotionMembers: 5, opPollS
 await open(() => {
   ui2.__answer({
     requireApproval: false,
-    staffApproveClans: true,
-    staffApprovePromotions: true,
     promotionMembers: 9,
+    maxOutpost: 20,
+    maxClan: 80,
     warNeedsAcceptance: true,
-    staffAdjustKills: true,
-    staffWarBooks: true,
     maxWars: 4,
     notifyEnabled: true,
     notifyCreated: true,
@@ -365,11 +363,12 @@ checkEqual(
 );
 
 // Promotion approval rights are separate from creation approval rights.
-settings.update({ staffCanApproveClans: false, staffCanApprovePromotions: true });
+staff.updateRole('mod', { approveClans: false, approvePromotions: true });
 const promoRequest = { kind: 'promote', clanId: wolves.id, name: 'Wolves', requesterId: leader.id, requesterName: 'Alex', id: 'x', at: 0 };
 const createRequest = { kind: 'create', name: 'Badgers', requesterId: stranger.id, requesterName: 'Zoe', id: 'y', at: 0 };
 check('a Mod may still review promotions', requests.canApproveRequest(mod, promoRequest));
 check('but not creations', !requests.canApproveRequest(mod, createRequest));
+staff.updateRole('mod', { approveClans: true });
 settings.update({ staffCanApproveClans: true });
 
 // ── Long lists page rather than building one button per record ───────────
@@ -380,7 +379,18 @@ mock.__setPlayers([...roster, ...crowd]);
 for (const person of crowd) playersMod.register(person);
 
 const bigClan = clans.createClan(crowd[0].id, crowd[0].name, 'Legion').value;
-for (const person of crowd.slice(1)) clans.addMember(bigClan.id, person.id, person.name);
+// Promote before filling: an outpost holds far fewer members than a full clan,
+// so a roster this size only exists on the far side of promotion. The
+// threshold is set explicitly because the modal round-trip above left it at
+// whatever that test was proving.
+settings.update({ outpostPromotionMembers: 2 });
+for (const person of crowd.slice(1, 3)) clans.addMember(bigClan.id, person.id, person.name);
+const legionPromotion = requests.filePromotion(
+  { id: crowd[0].id, name: crowd[0].name },
+  clans.getClan(bigClan.id),
+);
+requests.approve(legionPromotion.value.id);
+for (const person of crowd.slice(3)) clans.addMember(bigClan.id, person.id, person.name);
 
 /** The list form itself, past the search step a long list opens with. */
 function listScreen(shownForms, titleFragment) {

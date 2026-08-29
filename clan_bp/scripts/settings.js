@@ -14,7 +14,7 @@
  * powers.
  */
 
-import { KEY, C } from './config.js';
+import { KEY, C, LIMITS } from './config.js';
 import { getJson, setJson } from './storage.js';
 
 
@@ -77,6 +77,8 @@ import { getJson, setJson } from './storage.js';
  * @property {string} name
  * @property {string} color
  * @property {ShowAs} showAs
+ * @property {string} brackets      a bracket style id
+ * @property {string} bracketColor
  */
 
 /**
@@ -85,6 +87,8 @@ import { getJson, setJson } from './storage.js';
  * @property {string} name
  * @property {string} color
  * @property {ShowAs} showAs
+ * @property {string} brackets      a bracket style id
+ * @property {string} bracketColor
  * @property {PeacefulVisibility} visibility
  */
 
@@ -122,16 +126,19 @@ import { getJson, setJson } from './storage.js';
 
 /**
  * @typedef {object} Settings
+ * What a staff role may do is deliberately *not* here. Those five switches used
+ * to live in this record, which meant a server could not have one role that
+ * reviews clans and another that only corrects war kills — the switch applied to
+ * every clan-managing role at once. They are fields on the role now; see
+ * `StaffRole` in `config.js`.
+ *
  * @property {boolean} requireClanApproval   clan creation goes to review first
- * @property {boolean} staffCanApproveClans  clan-managing staff roles may approve
- * @property {boolean} staffCanApprovePromotions  clan-managing staff may approve promotions
  * @property {number} opPollSeconds          how often operator status is re-checked
  * @property {number} outpostPromotionMembers  members an outpost needs to request promotion
+ * @property {number} maxOutpostMembers        members an outpost may hold
+ * @property {number} maxClanMembers           members a full clan may hold
  * @property {boolean} warRequiresAcceptance   a declaration must be accepted to start
  * @property {number} maxActiveWarsPerClan     0 means unlimited
- * @property {boolean} staffCanAdjustWarKills  clan-managing staff may edit kill totals
- * @property {boolean} staffCanGenerateWarBooks clan-managing staff may print any clan's war record
- * @property {boolean} staffCanAssignPeaceful  clan-managing staff may grant Peaceful
  * @property {DisplaySettings} display
  * @property {NotificationSettings} notifications
  */
@@ -144,15 +151,14 @@ import { getJson, setJson } from './storage.js';
  */
 const DEFAULTS = {
   requireClanApproval: true,
-  staffCanApproveClans: true,
-  staffCanApprovePromotions: true,
   opPollSeconds: 20,
   outpostPromotionMembers: 5,
+  // An outpost is meant to be small and a full clan is not, so the two carry
+  // separate caps rather than one number with the tier ignored.
+  maxOutpostMembers: 15,
+  maxClanMembers: 100,
   warRequiresAcceptance: true,
   maxActiveWarsPerClan: 0,
-  staffCanAdjustWarKills: true,
-  staffCanGenerateWarBooks: true,
-  staffCanAssignPeaceful: true,
   display: {
     nametag: {
       // Hidden by default, as specified. The clan alone is the second line
@@ -181,8 +187,8 @@ const DEFAULTS = {
       peacefulOrder: 20,
       nameOrder: 30,
     },
-    admin: { symbol: '✦', name: 'Admin', color: C.red, showAs: 'symbol' },
-    peaceful: { symbol: '☮', name: 'Peaceful', color: C.green, showAs: 'symbol', visibility: 'both' },
+    admin: { symbol: '✦', name: 'Admin', color: C.red, showAs: 'symbol', brackets: 'off', bracketColor: C.darkGray },
+    peaceful: { symbol: '☮', name: 'Peaceful', color: C.green, showAs: 'symbol', brackets: 'off', bracketColor: C.darkGray, visibility: 'both' },
     // Three colours that read apart from each other at a glance and none of
     // which is the grey the chat window itself uses. The outpost tone is
     // deliberately unlike the clan tone: the tier should be visible without
@@ -335,6 +341,22 @@ export function warLimit() {
   const value = get().maxActiveWarsPerClan;
   if (!Number.isFinite(value) || value <= 0) return undefined;
   return Math.round(value);
+}
+
+/**
+ * How many members a clan of the given tier may hold, clamped so a malformed
+ * stored value cannot make a clan unjoinable or unbounded.
+ *
+ * The ceiling is {@link LIMITS.maxMembersPerClan}, which is not a preference:
+ * a clan record is one dynamic property and it has a size limit.
+ *
+ * @param {boolean} outpost
+ * @returns {number}
+ */
+export function memberLimit(outpost) {
+  const value = outpost ? get().maxOutpostMembers : get().maxClanMembers;
+  if (!Number.isFinite(value)) return outpost ? 15 : LIMITS.maxMembersPerClan;
+  return Math.min(Math.max(Math.round(value), 1), LIMITS.maxMembersPerClan);
 }
 
 /**

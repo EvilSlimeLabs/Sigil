@@ -111,7 +111,15 @@ Three separate layers, deliberately not the same thing.
 
 **Admin** is operator status, full stop. `/op someone` makes them an admin; de-opping removes it. The pack never grants or stores admin, and nothing inside it can make a non-operator an admin.
 
-**Staff roles** are the pack's own layer, for trusted players who are not operators. Each has a name, a symbol, a colour, whether it shows as symbol/name/both, and a switch for clan-management access. `Mod` ships with that switch on; `Helper` ships with it off. Only admins can create, edit or assign staff roles — so a `Mod` can never promote itself.
+An operator **cannot also hold a staff role**. Admin is the whole permission rather than one rank among several, so a role underneath it could only be a weaker duplicate of powers already held — and the displayed title prefers Admin anyway, so it would be invisible too. Every other permission level may hold any role. The Admin title's own symbol, name and colour are edited from the staff role list beside the roles it sits above, in a narrower form: no powers, because an admin already has all of them.
+
+**Visitors are excluded from every candidate list** and cannot be invited to a clan. A visitor cannot build, mine or interact, so they cannot take part in anything a clan does.
+
+Permission level can only be read for a player who is present, so the pack records the level it last saw — on join, and on the same poll that watches for op changes. A visitor who logs off therefore stays a visitor and stays out of the pickers; rejoin them at a higher level and they become a candidate again on the spot, with no admin action. A player the pack has never seen is not filtered, because never having been observed is not evidence of anything.
+
+**Staff roles** are the pack's own layer, for trusted players who are not operators. Each has a name, a symbol, a colour, whether it shows as symbol/name/both, and **its own set of powers**: manage any clan, approve clan requests, approve promotions, adjust war kills, print any clan's war records, grant the Peaceful marker. `Mod` ships with all of them; `Helper` ships with none. Only admins can create, edit or assign staff roles — so a `Mod` can never promote itself.
+
+Those powers used to be global switches in the settings, which meant they applied to every clan-managing role at once — you could not have one role that reviews clans and another that only corrects war kills. A role stored before the change keeps exactly the powers it had.
 
 **Clan roles** are per-clan labels the Leader creates, assigns and removes. `Officer`, `Scout`, anything they like. They are **display only** — nothing in the pack branches on them — and a role made in one clan means nothing in another. The owner always holds `Leader`, automatically and unchangeably.
 
@@ -195,9 +203,10 @@ A correction made with `/clan:warkills` can **name a player**, in which case it 
 
 **Titles**
 
-- The Admin title's symbol, name and colour, and whether it shows as symbol, name, or both. **Symbols are chosen from a curated list** rather than typed: a glyph outside the game's font renders as a hollow box, and it does so on everyone else's screen rather than on the screen of whoever picked it. A symbol an older version stored is kept at the top of the list so upgrading never silently changes a tag.
+- The Admin title's symbol, name, colour, brackets, and whether it shows as symbol, name, or both. **Symbols are chosen from a curated list** rather than typed: a glyph outside the game's font renders as a hollow box, and it does so on everyone else's screen rather than on the screen of whoever picked it. A symbol an older version stored is kept at the top of the list so upgrading never silently changes a tag.
 - The same for the Peaceful role, plus whether it appears in the nametag, chat, both or neither
-- Each staff role carries its own symbol, name, colour and show-as
+- Each staff role carries its own symbol, name, colour, show-as and brackets
+- **Brackets on system titles** — the Admin title, each staff role and the Peaceful marker can each be wrapped in a bracket style with a colour of its own, the same way the clan tag is. Off by default, so an upgraded world reads exactly as it did
 
 **Colours** are picked from a shared palette wherever a colour applies — clan, role, outpost tint, Admin, Peaceful, and each staff role. The palette is all sixteen original formatting colours plus Bedrock's material tones — Minecoin, Quartz, Iron, Netherite, Redstone, Copper, Gold Ore, Emerald, Diamond, Lapis, Amethyst and Resin.
 
@@ -212,11 +221,10 @@ Defaults produce `✦ Steve` above the head with `Wolves` beneath, and `✦ [Wol
 `/clan:settings`, admins only.
 
 - **Require admin approval to create a clan** — default on
-- **Staff roles may approve creations / promotions** — default on, separately
 - **Members needed to request promotion** — default 5
+- **Max members in an outpost** — default 15
+- **Max members in a full clan** — default 100. An outpost is meant to be small; promotion is what lifts the cap, which gives the tier a consequence beyond being allowed to fight
 - **War declarations must be accepted** — default on
-- **Staff roles may adjust war kills** — default on
-- **Staff roles may print any clan's war records** — default on
 - **Max active wars per clan** — default 0, meaning unlimited
 - **Chat notifications** — a master switch plus one per category: clan created, member joined, member left, clan disbanded, outpost promoted, war declared, war ended. All default on.
 - **Staff roles may print any war record** — default on
