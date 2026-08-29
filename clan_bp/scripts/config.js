@@ -216,12 +216,8 @@ export const INVITE_TTL_SECONDS = 7 * 24 * 60 * 60;
  * and "operator". Never confers admin.
  *
  * Each power is carried by the role rather than by a matching switch in the
- * add-on settings. It used to take both — a role with `manageClans`, and a
- * global `staffCanApproveClans` — which meant a server could not have one role
- * that reviews clans and another that only adjusts war kills, because the
- * switches applied to every clan-managing role at once. Putting them here makes
- * a role a real set of powers instead of a label with a master override
- * somewhere else.
+ * add-on settings, so a server can have one role that reviews clans and another
+ * that only adjusts war kills.
  *
  * The five specific powers are read through {@link StaffRole} accessors in
  * `staff.js`, which fall back to `manageClans` when a stored role predates
@@ -288,14 +284,11 @@ export const DEFAULT_STAFF_ROLES = [
  * Every symbol a system role, the Admin title or the Peaceful marker can be
  * given, in dropdown order.
  *
- * These used to be typed in free-hand, which put the burden of knowing what the
- * game's font can actually draw on whoever was filling in the form: a glyph
- * outside it renders as a hollow box, and it does so on other people's screens
- * rather than on the screen of the person who chose it. A curated list is the
- * only way an admin can pick one and know what everyone else sees.
+ * A curated list rather than free text: a glyph outside the game's font renders
+ * as a hollow box, and it does so on other people's screens rather than on the
+ * screen of whoever chose it.
  *
- * Grouped by the kind of thing they say — rank, conflict, allegiance, shape —
- * because a flat list of thirty glyphs is a wall to read through.
+ * Grouped by the kind of thing they say — rank, conflict, allegiance, shape.
  *
  * As with the colours, only the id and the glyph are here; the name a player
  * reads is in `TEXT.symbol`, because `config.js` cannot reach the catalogue
@@ -338,11 +331,10 @@ export const SYMBOL_CHOICES = [
 /**
  * Every colour a name, role or title can be given, in dropdown order.
  *
- * The list used to hold ten of the sixteen original codes. It now holds all
- * sixteen, followed by Bedrock's material colours — the ore-and-metal tones the
- * game added later, which are the only palette entries that look like anything
- * other than a flat hue. Bright first, dark after, materials last, so the
- * common choices sit at the top of the dropdown.
+ * All sixteen original codes, followed by Bedrock's material colours — the
+ * ore-and-metal tones, the only palette entries that are not a flat hue. Bright
+ * first, dark after, materials last, so the common choices sit at the top of
+ * the dropdown.
  *
  * Order is presentation only: a colour is stored as its code, so inserting an
  * entry here never re-points a colour anyone already chose.

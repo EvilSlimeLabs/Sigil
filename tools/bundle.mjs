@@ -260,14 +260,21 @@ for (const dir of [BP, RP]) {
 // An import that resolves in the editor but not on disk is a pack that loads to
 // a blank error. Cycles are audit-imports.mjs's job; this only asks whether the
 // file is there, and Windows' case-insensitive lookup means the name must match too.
-for (const file of fs.readdirSync(path.join(ROOT, BP, 'scripts'))) {
-  if (!file.endsWith('.js')) continue;
-  const siblings = fs.readdirSync(path.join(ROOT, BP, 'scripts'));
-  const src = fs.readFileSync(path.join(ROOT, BP, 'scripts', file), 'utf8');
-  for (const [, target] of src.matchAll(/^\s*(?:import|export)[^'"]*['"](\.\/[^'"]+)['"]/gm)) {
-    if (!siblings.includes(target.slice(2))) fail(`${file} imports missing ${target}`);
+(function scripts(rel) {
+  for (const name of fs.readdirSync(path.join(ROOT, BP, 'scripts', rel))) {
+    const file = rel ? `${rel}/${name}` : name;
+    if (fs.statSync(path.join(ROOT, BP, 'scripts', file)).isDirectory()) {
+      scripts(file);
+      continue;
+    }
+    if (!name.endsWith('.js')) continue;
+    const src = fs.readFileSync(path.join(ROOT, BP, 'scripts', file), 'utf8');
+    for (const [, target] of src.matchAll(/^\s*(?:import|export)[^'"]*['"](\.[^'"]+)['"]/gm)) {
+      const resolved = path.posix.normalize(path.posix.join(path.posix.dirname(file), target));
+      if (!exists(`${BP}/scripts/${resolved}`)) fail(`${file} imports missing ${target}`);
+    }
   }
-}
+})('');
 
 // Texture atlases: the key a block or item names has to be in the atlas, and the
 // file the atlas names has to be on disk.

@@ -2,17 +2,16 @@
 /**
  * The Peaceful marker.
  *
- * It is a flag rather than a staff role slot, and deliberately so: a player can
- * be Admin *and* Peaceful, or Mod *and* Peaceful. Folding it into the
- * single-staff-role slot would have made those mutually exclusive, which is
- * exactly what the requirement rules out.
+ * A flag rather than a staff role slot, so a player can be Admin and Peaceful,
+ * or Mod and Peaceful — the single staff-role slot would make those mutually
+ * exclusive.
  *
  * It carries no mechanical effect of its own — it marks a player in the nametag
  * and in chat, and nothing in the codebase branches on it.
  */
 
 import { KEY } from './config.js';
-import { getString, setString, remove, idsWithPrefix } from './storage.js';
+import { getString, idsWithPrefix, setRendered } from './storage.js';
 import * as settings from './settings.js';
 import * as staff from './staff.js';
 
@@ -33,8 +32,7 @@ export function isPeaceful(playerId) {
  * @param {boolean} value
  */
 export function set(playerId, value) {
-  if (value) setString(KEY.peaceful + playerId, '1');
-  else remove(KEY.peaceful + playerId);
+  setRendered(playerId, KEY.peaceful + playerId, value ? '1' : undefined);
 }
 
 /**

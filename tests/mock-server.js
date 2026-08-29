@@ -4,7 +4,7 @@
  *
  * It implements only what the modules under test actually call: a dynamic
  * property store, a player roster, and a scheduler that runs work immediately.
- * It is deliberately not a general-purpose emulator — anything it does not
+ * It is not a general-purpose emulator — anything it does not
  * implement should fail loudly rather than silently pass.
  */
 

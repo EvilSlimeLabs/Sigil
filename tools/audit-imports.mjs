@@ -16,13 +16,35 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SCRIPTS = path.join(here, '..', 'clan_bp', 'scripts');
 
+/**
+ * Every module in the scripts tree, as paths relative to it. The menus live in
+ * a folder of their own, so a flat listing would miss most of the pack.
+ *
+ * @param {string} root
+ * @param {string} [rel]
+ * @returns {string[]}
+ */
+function scriptFiles(root, rel = '') {
+  const out = [];
+  for (const name of fs.readdirSync(path.join(root, rel))) {
+    const child = rel ? `${rel}/${name}` : name;
+    if (fs.statSync(path.join(root, child)).isDirectory()) out.push(...scriptFiles(root, child));
+    else if (name.endsWith('.js')) out.push(child);
+  }
+  return out;
+}
+
 /** @type {Map<string, string[]>} */
 const graph = new Map();
 
-for (const file of fs.readdirSync(SCRIPTS)) {
-  if (!file.endsWith('.js')) continue;
+for (const file of scriptFiles(SCRIPTS)) {
   const src = fs.readFileSync(path.join(SCRIPTS, file), 'utf8');
-  const deps = [...src.matchAll(/^import[^'"]*['"]\.\/([A-Za-z0-9_.-]+)['"]/gm)].map((m) => m[1]);
+  // Both forms count: an `export ... from` re-export creates the same load-order
+  // dependency an `import` does, and the barrel is built entirely out of them.
+  const deps = [];
+  for (const [, spec] of src.matchAll(/^(?:import|export)[^'"]*['"](\.[^'"]+)['"]/gm)) {
+    deps.push(path.posix.normalize(path.posix.join(path.posix.dirname(file), spec)));
+  }
   graph.set(file, deps);
 }
 

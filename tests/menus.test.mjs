@@ -65,7 +65,7 @@ clans.addMember(wolves.id, member.id, member.name);
 /**
  * Lets every pending microtask run.
  *
- * Screens are async and run() deliberately does not await them, so a screen
+ * Screens are async and run() does not await them, so a screen
  * that opens a second screen finishes on the microtask queue. Draining it is
  * what makes a whole navigation path observable from a test.
  */
@@ -263,7 +263,7 @@ check('a leader may surrender', buttonsOf(leaderDetail).some((b) => b.includes('
 check('a leader may offer peace', buttonsOf(leaderDetail).some((b) => b.includes('Peace')));
 
 // ── A modal round-trips its values by key ─────────────────────────────────
-// The mock deliberately gives non-inputs a slot, the stricter of the two
+// The mock gives non-inputs a slot, the stricter of the two
 // possible engine behaviours, so this proves the resolver handles it.
 settings.update({ requireClanApproval: true });
 await open(() => {
@@ -333,9 +333,8 @@ const modSettings = await open(() => ui.settingsMenu(mod));
 checkEqual('a Mod is shown no settings form', modSettings.length, 0);
 
 // ── Reviewers are told what was actually requested ────────────────────────
-// One notice worded for creation used to be sent for promotions and renames
-// too, and promotion requests went to whoever could approve *creations* —
-// which is a separate setting.
+// Each kind of request has its own wording, and a promotion notice goes to
+// whoever can approve promotions rather than creations.
 settings.update({ requireClanApproval: true });
 const notified = (player) => player.messages.map((m) => m.replace(/§./g, ''));
 
@@ -348,17 +347,17 @@ await open(() => ui.mainMenu(admin));
 // each kind produces rather than the delivery.
 checkEqual(
   'a creation notice says a clan was requested',
-  txt.cmd.reviewNoticeCreate('Zoe', 'Badgers').replace(/§./g, '').split(String.fromCharCode(10))[0],
+  txt.request.reviewNoticeCreate('Zoe', 'Badgers').replace(/§./g, '').split(String.fromCharCode(10))[0],
   'Zoe requested the clan Badgers.',
 );
 checkEqual(
   'a promotion notice says promotion',
-  txt.cmd.reviewNoticePromote('Alex', 'Wolves').replace(/§./g, '').split(String.fromCharCode(10))[0],
+  txt.request.reviewNoticePromote('Alex', 'Wolves').replace(/§./g, '').split(String.fromCharCode(10))[0],
   'Alex asked to promote Wolves to a full clan.',
 );
 checkEqual(
   'a rename notice names both names',
-  txt.cmd.reviewNoticeRename('Alex', 'Wolves', 'Direwolves').replace(/§./g, '').split(String.fromCharCode(10))[0],
+  txt.request.reviewNoticeRename('Alex', 'Wolves', 'Direwolves').replace(/§./g, '').split(String.fromCharCode(10))[0],
   'Alex asked to rename Wolves to Direwolves.',
 );
 

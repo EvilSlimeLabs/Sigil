@@ -9,6 +9,7 @@
  */
 
 import { world } from '@minecraft/server';
+import { identityChanged } from './hooks.js';
 import { KEY, LIMITS, SCHEMA_VERSION } from './config.js';
 
 /**
@@ -30,6 +31,38 @@ export function getString(key) {
  */
 export function setString(key, value) {
   world.setDynamicProperty(key, value);
+}
+
+/**
+ * Writes a player-keyed property that the renderer reads, then announces the
+ * change so the nametag and chat name are rebuilt.
+ *
+ * Everything the renderer composes a player's identity from — their clan, their
+ * staff role, their Peaceful marker — is stored one property per player. Those
+ * writes go through here so that persisting a change and announcing it are one
+ * step: a mutator cannot do the first and forget the second.
+ *
+ * Passing `undefined` removes the property.
+ *
+ * @param {string} playerId whose displayed identity this write affects
+ * @param {string} key
+ * @param {string | undefined} value
+ */
+export function setRendered(playerId, key, value) {
+  if (value === undefined) remove(key);
+  else setString(key, value);
+  identityChanged(playerId);
+}
+
+/**
+ * Announces that several players' displayed identities changed, for a write
+ * that touches many of them at once — editing a staff role redraws every player
+ * holding it, and the role itself is not stored per player.
+ *
+ * @param {Iterable<string>} playerIds
+ */
+export function refreshRendered(playerIds) {
+  for (const id of playerIds) identityChanged(id);
 }
 
 /**

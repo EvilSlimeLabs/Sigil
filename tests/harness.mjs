@@ -19,11 +19,20 @@ const scriptsDir = path.join(here, '..', 'clan_bp', 'scripts');
 const generatedDir = path.join(here, '.generated');
 
 /**
- * Copies the named modules with their game imports rewritten.
+ * Copies the pack's modules with their game imports rewritten.
+ *
+ * The whole `scripts` tree is copied rather than the named subset, because the
+ * menus live in a folder of their own and a module's imports decide what
+ * actually loads. `moduleNames` still says what a suite means to exercise, and
+ * is what {@link load} resolves against.
+ *
+ * A module in a subfolder reaches the mocks through a relative path, so the
+ * rewrite is depth-aware.
  *
  * @param {string[]} moduleNames
  */
 export function prepare(moduleNames) {
+  void moduleNames;
   fs.rmSync(generatedDir, { recursive: true, force: true });
   fs.mkdirSync(generatedDir, { recursive: true });
 
@@ -31,19 +40,30 @@ export function prepare(moduleNames) {
     fs.copyFileSync(path.join(here, mock), path.join(generatedDir, mock));
   }
 
-  for (const name of moduleNames) {
-    const source = fs
-      .readFileSync(path.join(scriptsDir, name), 'utf8')
-      .replace(/from '@minecraft\/server'/g, "from './mock-server.js'")
-      .replace(/from '@minecraft\/server-ui'/g, "from './mock-server-ui.js'");
-    fs.writeFileSync(path.join(generatedDir, name), source);
-  }
+  (function copy(rel) {
+    for (const name of fs.readdirSync(path.join(scriptsDir, rel))) {
+      const child = rel ? `${rel}/${name}` : name;
+      const full = path.join(scriptsDir, child);
+      if (fs.statSync(full).isDirectory()) {
+        fs.mkdirSync(path.join(generatedDir, child), { recursive: true });
+        copy(child);
+        continue;
+      }
+      if (!name.endsWith('.js')) continue;
+      const up = '../'.repeat(child.split('/').length - 1) || './';
+      const source = fs
+        .readFileSync(full, 'utf8')
+        .replace(/from '@minecraft\/server'/g, `from '${up}mock-server.js'`)
+        .replace(/from '@minecraft\/server-ui'/g, `from '${up}mock-server-ui.js'`);
+      fs.writeFileSync(path.join(generatedDir, child), source);
+    }
+  })('');
 }
 
 /**
  * Imports a prepared module.
  *
- * The specifier carries no cache-busting query on purpose. The modules under
+ * The specifier carries no cache-busting query. The modules under
  * test import each other, and a query string would give the test a *different*
  * instance from the one they share — separate property stores, separate hook
  * registrations — so assertions would silently observe the wrong world. Each

@@ -78,7 +78,7 @@ function onJoin(player) {
   const clan = clans.clanOf(player.id);
   if (clan) {
     player.sendMessage(
-      msg(TEXT.join.welcomeBackYouAre(display.identityLine(player))),
+      msg(TEXT.join.welcomeBack(display.identityLine(player))),
     );
   }
 
@@ -87,7 +87,7 @@ function onJoin(player) {
     const names = pending.map((invite) => invite.clanName).join(', ');
     player.sendMessage(
       msg(
-        TEXT.join.youHavePendingClanInvite(pending.length, names),
+        TEXT.join.pendingInvites(pending.length, names),
       ),
     );
   }
@@ -95,7 +95,7 @@ function onJoin(player) {
   const ownRequest = requests.forPlayer(player.id);
   if (ownRequest) {
     player.sendMessage(
-      msg(TEXT.join.yourClanRequestForIs(ownRequest.name)),
+      msg(TEXT.join.yourRequestStillPending(ownRequest.name)),
     );
   }
 
@@ -106,7 +106,7 @@ function onJoin(player) {
     if (queued > 0) {
       player.sendMessage(
         msg(
-          TEXT.join.clanRequestSAwaitingReview(queued),
+          TEXT.join.requestsAwaitingReview(queued),
         ),
       );
     }

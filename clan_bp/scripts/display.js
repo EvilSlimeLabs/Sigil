@@ -447,13 +447,13 @@ export function forget(playerId) {
 export function chatStatus() {
   switch (chatMode) {
     case 'property':
-      return TEXT.status.chatTagsActivePlayerChatnameprefix;
+      return TEXT.status.chatViaNamePrefix;
     case 'event':
-      return TEXT.status.chatTagsActiveChatsendFallback;
+      return TEXT.status.chatViaSendFallback;
     case 'unprobed':
-      return TEXT.status.chatSupportNotYetDetermined;
+      return TEXT.status.chatUndetermined;
     default:
-      return TEXT.status.chatTagsUnavailableEnableThe;
+      return TEXT.status.chatUnavailable;
   }
 }
 

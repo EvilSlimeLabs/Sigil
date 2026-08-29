@@ -1,16 +1,15 @@
 // @ts-check
 /**
- * A one-signal event bus, used to break what would otherwise be an import
- * cycle.
+ * A small event bus that keeps the domain modules from importing the ones that
+ * react to them.
  *
- * `clans.js` and `staff.js` change a player's identity (their clan, their role,
- * their staff rank). `display.js` renders that identity, and already imports
- * both of them. Rather than have the domain modules import the renderer back,
- * they announce the change here and `display.js` subscribes at start-up.
+ * `clans.js` and `staff.js` change a player's identity — their clan, their
+ * role, their staff rank. `display.js` renders that identity and already
+ * imports both, so instead of being imported back it subscribes here at
+ * start-up and the domain modules announce.
  *
- * The alternative — making every command and form remember to refresh the
- * display after each mutation — is the kind of thing that works until someone
- * adds the twelfth code path.
+ * The same shape carries the other cross-domain facts: a disbanded clan, a clan
+ * that has fallen below strength, and a settings write.
  */
 
 /** @type {Array<(playerId: string) => void>} */

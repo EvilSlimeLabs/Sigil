@@ -23,11 +23,14 @@ const answers = [];
  *
  * The real engine is ambiguous about whether a label, header or divider takes
  * a slot in `formValues`, so the mock can be switched to either and the
- * resolver must cope with both.
+ * resolver must cope with both. `mismatched` is neither: it drops a value so
+ * the count matches no convention at all, which is how the resolver's warning
+ * branch — the one that means the runtime changed under us — is reachable from
+ * a test.
  */
 let slotMode = "all-slots";
 
-/** @param {"all-slots" | "inputs-only"} mode */
+/** @param {"all-slots" | "inputs-only" | "mismatched"} mode */
 export function __setSlotMode(mode) {
   slotMode = mode;
 }
@@ -211,7 +214,9 @@ export class ModalFormData {
     const formValues =
       slotMode === "all-slots"
         ? this._slots.map((slot) => (slot === null ? undefined : values[inputs.indexOf(slot)]))
-        : values;
+        : slotMode === "mismatched"
+          ? values.slice(0, -1)
+          : values;
 
     return { canceled: false, formValues };
   }

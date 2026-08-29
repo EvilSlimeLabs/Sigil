@@ -304,7 +304,7 @@ const horde = Array.from({ length: 40 }, (_, i) => new mock.Player(`h${i}`, `Fig
 mock.__setPlayers([...roster, ...horde]);
 for (const p of horde) playersMod.register(p);
 
-// A deliberately long clan name, so the heading wraps and costs two lines.
+// A long clan name, so the heading wraps and costs two lines.
 const bigA = fullClan(horde[0], 'Northern Legion', horde.slice(1, 20));
 const bigB = fullClan(horde[20], 'Southern Host', horde.slice(21, 40));
 const bigWar = wars.declare(bigA, bigB, horde[0].id).value;

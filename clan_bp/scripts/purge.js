@@ -2,24 +2,19 @@
 /**
  * Removing a player from the system entirely.
  *
- * This exists because **bans cannot be observed from a script**. The
- * `@minecraft/server` API — stable and beta alike — has no ban list, no ban
- * event, and no kick surface; `playerLeave` reports only an id and a name, so a
- * ban is indistinguishable from a dropped connection. Banning happens outside
- * the sandbox, in a dedicated server's allowlist or in platform moderation.
+ * Bans cannot be observed from a script. The `@minecraft/server` API — stable
+ * and beta alike — has no ban list, no ban event and no kick surface, and
+ * `playerLeave` reports only an id and a name, so a ban looks the same as a
+ * dropped connection. Banning happens outside the sandbox, in a dedicated
+ * server's allowlist or in platform moderation, and purging is an explicit
+ * admin action rather than something inferred from a departure.
  *
- * So purging is deliberately an explicit admin action rather than something
- * inferred. A script that removed players on a guessed signal would eventually
- * dissolve a clan because its leader's connection dropped.
+ * A purge leaves nothing behind of the player as a participant: membership,
+ * ownership, staff role, the Peaceful marker, invites sent and received, any
+ * pending clan request, and the name registry entries the UI finds them by.
  *
- * A purge is meant to leave nothing behind of the player as a participant:
- * membership, ownership, staff role, the Peaceful marker, invites sent and
- * received, any pending clan request, and the name registry entries that let
- * the UI find them.
- *
- * **Finished war records are deliberately exempt.** A war's per-member kill
- * counts are history, and history that rewrites itself when someone leaves is
- * not history. A purged player stays named in the wars they fought.
+ * Finished war records are exempt. A war's per-member kill counts are history,
+ * and a purged player stays named in the wars they fought.
  */
 
 import { KEY } from './config.js';

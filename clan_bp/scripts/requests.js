@@ -16,9 +16,10 @@
  * reviewed, and only the second check can catch that.
  */
 
+import { world } from '@minecraft/server';
 import { KEY, LIMITS } from './config.js';
 import { getJson, setJson, remove, now } from './storage.js';
-import { validateClanName, normalizeKey } from './format.js';
+import { validateClanName, normalizeKey, msg } from './format.js';
 import * as clans from './clans.js';
 import { onClanUnderstrength, onSettingsChanged } from './hooks.js';
 import * as settings from './settings.js';
@@ -98,15 +99,15 @@ export function canApproveRequest(player, request) {
  */
 export function fileDemotion(clan) {
   if (!clans.isUnderstrength(clan)) {
-    return { ok: false, error: TEXT.request.isNotUnderstrength(clan.name) };
+    return { ok: false, error: TEXT.request.notUnderstrength(clan.name) };
   }
 
   const queue = all();
   if (queue.some((request) => request.kind === 'demote' && request.clanId === clan.id)) {
-    return { ok: false, error: TEXT.request.alreadyAwaitingDemotionReview(clan.name) };
+    return { ok: false, error: TEXT.request.demotionAlreadyQueued(clan.name) };
   }
   if (queue.length >= LIMITS.maxPendingRequests) {
-    return { ok: false, error: TEXT.request.theRequestQueueIsFull };
+    return { ok: false, error: TEXT.request.queueFull };
   }
 
   /** @type {ClanRequest} */
@@ -139,25 +140,25 @@ export function fileDemotion(clan) {
  */
 export function fileRename(requester, clan, rawName) {
   if (!clans.isOwner(clan, requester.id)) {
-    return { ok: false, error: TEXT.request.onlyTheLeaderCanRename };
+    return { ok: false, error: TEXT.common.notClanLeaderRename };
   }
 
   const validated = validateClanName(rawName);
   if (!validated.ok) return validated;
   if (normalizeKey(validated.value) === normalizeKey(clan.name)) {
-    return { ok: false, error: TEXT.request.isAlreadyCalledThat(clan.name) };
+    return { ok: false, error: TEXT.request.nameUnchanged(clan.name) };
   }
 
   const queue = all();
   if (queue.some((request) => request.kind === 'rename' && request.clanId === clan.id)) {
-    return { ok: false, error: TEXT.request.alreadyHasARenamePending(clan.name) };
+    return { ok: false, error: TEXT.request.renamePending(clan.name) };
   }
 
   const available = checkNameAvailable(validated.value);
   if (!available.ok) return available;
 
   if (queue.length >= LIMITS.maxPendingRequests) {
-    return { ok: false, error: TEXT.request.theRequestQueueIsFull };
+    return { ok: false, error: TEXT.request.queueFull };
   }
 
   /** @type {ClanRequest} */
@@ -174,6 +175,32 @@ export function fileRename(requester, clan, rawName) {
   queue.push(request);
   save(queue);
   return { ok: true, value: { ...request, newName: validated.value } };
+}
+
+/**
+ * Tells every online player who can review this request that it is waiting.
+ *
+ * Each kind gets its own wording: a promotion and a rename are not "requesting
+ * a clan", and a reviewer reading a creation notice for a rename has to open
+ * the queue to find out what actually happened.
+ *
+ * @param {ClanRequest} request
+ */
+export function notifyReviewers(request) {
+  for (const reviewer of world.getAllPlayers()) {
+    if (!canApproveRequest(reviewer, request)) continue;
+    const notice =
+      request.kind === 'promote'
+        ? TEXT.request.reviewNoticePromote(request.requesterName, request.name)
+        : request.kind === 'rename'
+          ? TEXT.request.reviewNoticeRename(
+              request.requesterName,
+              request.name,
+              request.newName ?? '',
+            )
+          : TEXT.request.reviewNoticeCreate(request.requesterName, request.name);
+    reviewer.sendMessage(msg(notice));
+  }
 }
 
 /**
@@ -314,14 +341,14 @@ export function byId(requestId) {
  */
 function checkNameAvailable(name, ignoreRequestId) {
   if (clans.clanByName(name)) {
-    return { ok: false, error: TEXT.request.aClanNamedAlreadyExists(name) };
+    return { ok: false, error: TEXT.clan.nameTaken(name) };
   }
   const key = normalizeKey(name);
   const clash = all().find(
     (request) => request.id !== ignoreRequestId && normalizeKey(request.name) === key,
   );
   if (clash) {
-    return { ok: false, error: TEXT.request.isAlreadyRequestedBy(name, clash.requesterName) };
+    return { ok: false, error: TEXT.request.nameRequestedByAnother(name, clash.requesterName) };
   }
   return { ok: true, value: name };
 }
@@ -336,7 +363,7 @@ function checkNameAvailable(name, ignoreRequestId) {
  */
 export function file(requester, rawName) {
   if (clans.clanOf(requester.id)) {
-    return { ok: false, error: TEXT.request.youAreAlreadyInA };
+    return { ok: false, error: TEXT.request.alreadyInAClan };
   }
 
   const validated = validateClanName(rawName);
@@ -348,7 +375,7 @@ export function file(requester, rawName) {
 
   const queue = all().filter((request) => request.requesterId !== requester.id);
   if (queue.length >= LIMITS.maxPendingRequests) {
-    return { ok: false, error: TEXT.request.theClanRequestQueueIs };
+    return { ok: false, error: TEXT.request.creationQueueFull };
   }
 
   /** @type {ClanRequest} */
@@ -384,10 +411,10 @@ function newRequestId() {
  */
 export function filePromotion(requester, clan) {
   if (!clans.isOutpost(clan)) {
-    return { ok: false, error: TEXT.request.isAlreadyAFullClan(clan.name) };
+    return { ok: false, error: TEXT.clan.alreadyAFullClan(clan.name) };
   }
   if (!clans.isOwner(clan, requester.id)) {
-    return { ok: false, error: TEXT.request.onlyTheLeaderCanRequest };
+    return { ok: false, error: TEXT.request.onlyLeaderMayRequestPromotion };
   }
 
   const needed = settings.promotionThreshold();
@@ -395,16 +422,16 @@ export function filePromotion(requester, clan) {
   if (have < needed) {
     return {
       ok: false,
-      error: TEXT.request.needsMembersToRequestPromotion(clan.name, needed, have),
+      error: TEXT.request.belowPromotionThreshold(clan.name, needed, have),
     };
   }
 
   const queue = all();
   if (queue.some((request) => request.kind === 'promote' && request.clanId === clan.id)) {
-    return { ok: false, error: TEXT.request.alreadyHasAPromotionRequest(clan.name) };
+    return { ok: false, error: TEXT.request.promotionPending(clan.name) };
   }
   if (queue.length >= LIMITS.maxPendingRequests) {
-    return { ok: false, error: TEXT.request.theRequestQueueIsFull };
+    return { ok: false, error: TEXT.request.queueFull };
   }
 
   /** @type {ClanRequest} */
@@ -430,7 +457,7 @@ export function filePromotion(requester, clan) {
  */
 export function withdraw(requestId) {
   const request = byId(requestId);
-  if (!request) return { ok: false, error: TEXT.request.thatRequestNoLongerExists };
+  if (!request) return { ok: false, error: TEXT.request.requestGone };
   save(all().filter((entry) => entry.id !== requestId));
   return { ok: true, value: request };
 }
@@ -446,13 +473,13 @@ export function withdraw(requestId) {
  */
 export function approve(requestId) {
   const request = byId(requestId);
-  if (!request) return { ok: false, error: TEXT.request.thatRequestNoLongerExists };
+  if (!request) return { ok: false, error: TEXT.request.requestGone };
 
   if (request.kind === 'rename') {
     const clan = request.clanId === undefined ? undefined : clans.getClan(request.clanId);
     if (!clan) {
       save(all().filter((entry) => entry.id !== requestId));
-      return { ok: false, error: TEXT.request.noLongerExistsTheRequest(request.name) };
+      return { ok: false, error: TEXT.request.clanGoneRequestDropped(request.name) };
     }
 
     const renamed = clans.rename(clan.id, request.newName ?? '');
@@ -466,14 +493,14 @@ export function approve(requestId) {
     const clan = request.clanId === undefined ? undefined : clans.getClan(request.clanId);
     if (!clan) {
       save(all().filter((entry) => entry.id !== requestId));
-      return { ok: false, error: TEXT.request.noLongerExistsTheRequest(request.name) };
+      return { ok: false, error: TEXT.request.clanGoneRequestDropped(request.name) };
     }
 
     // Re-checked at approval, exactly as promotion is: a clan can recruit back
     // up to strength while the review waits, and demoting it then would punish
     // it for a gap it has already closed.
     if (!clans.isUnderstrength(clan)) {
-      return { ok: false, error: TEXT.request.hasRecoveredItsNumbers(clan.name) };
+      return { ok: false, error: TEXT.request.recoveredStrength(clan.name) };
     }
 
     const demoted = clans.demote(clan.id);
@@ -487,7 +514,7 @@ export function approve(requestId) {
     const clan = request.clanId === undefined ? undefined : clans.getClan(request.clanId);
     if (!clan) {
       save(all().filter((entry) => entry.id !== requestId));
-      return { ok: false, error: TEXT.request.noLongerExistsTheRequest(request.name) };
+      return { ok: false, error: TEXT.request.clanGoneRequestDropped(request.name) };
     }
 
     // Re-checked at approval: members can leave while a request waits, and a
@@ -496,7 +523,7 @@ export function approve(requestId) {
     if (clans.memberCount(clan) < needed) {
       return {
         ok: false,
-        error: TEXT.request.hasFallenBelowMembersAnd(clan.name, needed),
+        error: TEXT.request.fellBelowThreshold(clan.name, needed),
       };
     }
 
@@ -511,7 +538,7 @@ export function approve(requestId) {
     save(all().filter((entry) => entry.id !== requestId));
     return {
       ok: false,
-      error: TEXT.request.hasJoinedAClanSince(request.requesterName),
+      error: TEXT.request.requesterJoinedAClan(request.requesterName),
     };
   }
 

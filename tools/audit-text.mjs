@@ -1,16 +1,11 @@
 /**
  * Fails if any player-visible wording is written outside the text catalogue.
  *
- * This exists because three hand-rolled checks in a row said "none left" while
- * a hundred strings sat in plain sight. Each looked only where it expected
- * strings to be — in the argument of a known message call — and so never saw a
- * sentence built into a variable first, split across a `+`, or tucked inside a
- * `${...}`.
- *
- * So this looks at **content**, not position: any literal holding two or more
- * words is prose, wherever it appears. Console logging is excluded, because
+ * The test is on **content**, not position: any literal holding two or more
+ * words is prose, wherever it appears — built into a variable first, split
+ * across a `+`, or tucked inside a `${...}`. Console logging is excluded, since
  * that goes to the content log rather than to a player. It runs as part of
- * `npm run verify`, so the answer cannot quietly rot again.
+ * `npm run verify`.
  *
  *   node tools/audit-text.mjs
  */
@@ -23,14 +18,32 @@ import ts from 'typescript';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SCRIPTS = path.join(here, '..', 'clan_bp', 'scripts');
 
+/**
+ * Every module in the scripts tree, as paths relative to it. The menus live in
+ * a folder of their own, so a flat listing would miss most of the pack.
+ *
+ * @param {string} root
+ * @param {string} [rel]
+ * @returns {string[]}
+ */
+function scriptFiles(root, rel = '') {
+  const out = [];
+  for (const name of fs.readdirSync(path.join(root, rel))) {
+    const child = rel ? `${rel}/${name}` : name;
+    if (fs.statSync(path.join(root, child)).isDirectory()) out.push(...scriptFiles(root, child));
+    else if (name.endsWith('.js')) out.push(child);
+  }
+  return out;
+}
+
 /** Two or more runs of three-plus letters, separated by a space. */
 const PROSE = /(^|[^A-Za-z])[A-Za-z]{3,}\s+[A-Za-z]{3,}/;
 
 /** @type {Array<{ file: string, line: number, text: string }>} */
 const findings = [];
 
-for (const file of fs.readdirSync(SCRIPTS)) {
-  if (!file.endsWith('.js') || file === 'text.js') continue;
+for (const file of scriptFiles(SCRIPTS)) {
+  if (file === 'text.js') continue;
 
   const full = path.join(SCRIPTS, file);
   const sf = ts.createSourceFile(full, fs.readFileSync(full, 'utf8'), ts.ScriptTarget.ES2022, true);

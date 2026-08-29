@@ -278,6 +278,8 @@ The two pack icons are generated the same way, from the same drawing helpers in 
 node tools/make-icons.mjs
 ```
 
-Every string a player sees lives in `clan_bp/scripts/text.js`, so the whole player-facing surface can be read in one file — and translated from one file.
+Every string a player sees lives in `clan_bp/scripts/text.js`, so the whole player-facing surface can be read in one file — and translated from one file. `tools/text-codemod.mjs` maintains that catalogue: it reports and merges entries that say the same thing, and applies key renames across the pack and the tests in one pass.
 
-Work deliberately left for a later round — duplicate catalogue entries, test coverage gaps, splitting `ui.js`, and the runtime assumptions that still need a pass in a live world — is recorded in [NEXT_UPDATE.md](NEXT_UPDATE.md).
+The menus live in `clan_bp/scripts/ui/`, one module per family — the player's own clan, wars, staff tools, settings, the Peaceful roster — over a `shared.js` that holds the screen runner, the confirm dialog and the paged pickers. They import in one direction only, and `ui.js` is the front door: it draws the main menu and re-exports the screens the commands, the War Map and the Clan Ledger open directly.
+
+Work still ahead — the runtime assumptions that need a pass in a live world, and the expansions the system is shaped for — is recorded in [NEXT_UPDATE.md](NEXT_UPDATE.md).

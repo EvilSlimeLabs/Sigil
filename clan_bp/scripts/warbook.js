@@ -115,7 +115,7 @@ export function bookName(war) {
 
 /**
  * The signed title, kept inside the engine's 16-character cap. Clan names are
- * deliberately left out — with two 16-character names nothing else would fit.
+ * left out; two 16-character names would leave room for nothing else.
  *
  * @param {War} war
  * @returns {string}
@@ -142,7 +142,7 @@ function outcomeLines(war) {
     case 'annulled':
       return ['No winner.', 'Annulled by staff.'];
     default:
-      return [TEXT.book.thisWarIsUnfinished];
+      return [TEXT.book.unfinishedStamp];
   }
 }
 
@@ -166,9 +166,9 @@ function row(name, kills) {
  *
  * The engine caps a page at 256 characters and says nothing about lines — the
  * line budget is a rendering concern, and a page that overflows it is simply
- * unreadable rather than rejected. Long text wraps, so a 22-character clan
- * header quietly costs two lines, which is exactly the sort of thing that
- * pushes the last row of a roster off the bottom of a page.
+ * unreadable rather than refused. Long text wraps, so a 22-character clan
+ * header costs two lines, which is what pushes the last row of a roster off the
+ * bottom of a page.
  *
  * @param {string} text
  * @returns {number}
@@ -179,9 +179,8 @@ function renderedLines(text) {
 
 /**
  * The roster rows for one side: everyone who scored, highest first, then
- * everyone who did not — the book stays useful when a clan turned out in force
- * and few landed a kill. An unattributed adjustment gets its own row, and only
- * when it is non-zero.
+ * everyone who did not, so the roster is complete even when few landed a kill.
+ * An unattributed adjustment gets its own row, and only when it is non-zero.
  *
  * @param {War} war
  * @param {string} clanId
@@ -203,9 +202,9 @@ function sideRows(war, clanId) {
  * Lays a titled list across as many pages as it needs, repeating the heading
  * on every continuation.
  *
- * Without this, a clan with more members than fit on one page spilled onto a
- * bare page of names with nothing saying whose roster it was — readable only
- * by flipping back. The heading is worth the two lines it costs.
+ * A clan with more members than fit on one page continues onto the next, and
+ * the heading is repeated there so a page of names always says whose roster it
+ * is.
  *
  * @param {string} heading
  * @param {string[]} rows
@@ -325,8 +324,8 @@ export function buildPages(war) {
   const closing = paginate([
     'Figures as of',
     'printing. Later',
-    TEXT.book.correctionsNeed,
-    TEXT.book.aFreshCopy,
+    TEXT.book.correctionsLineOne,
+    TEXT.book.correctionsLineTwo,
   ]);
 
   const pages = [
@@ -339,7 +338,7 @@ export function buildPages(war) {
 
   // Past the cap, say how much was left out rather than dropping it silently.
   const kept = pages.slice(0, LIMITS.bookMaxPages - 1);
-  kept.push(TEXT.book.morePageSOmittedThis(pages.length - kept.length));
+  kept.push(TEXT.book.pagesOmitted(pages.length - kept.length));
   return kept;
 }
 
@@ -354,7 +353,7 @@ export function buildBook(war, author) {
   const book = new ItemStack(BOOK_ITEM, 1);
   const contents = book.getComponent('minecraft:book');
   if (!contents) {
-    throw new Error(TEXT.book.hasNoBookComponent(BOOK_ITEM));
+    throw new Error(TEXT.book.notABook(BOOK_ITEM));
   }
 
   contents.setContents(buildPages(war));
@@ -409,13 +408,13 @@ export function warOfBook(item) {
  */
 export function givePlayerBook(player, war) {
   if (war.state !== 'ended') {
-    return { ok: false, error: TEXT.book.thatWarIsStillBeing };
+    return { ok: false, error: TEXT.book.warStillFought };
   }
 
   const inventory = player.getComponent('minecraft:inventory');
   const container = inventory?.container;
   if (!container || container.emptySlotsCount === 0) {
-    return { ok: false, error: TEXT.book.yourInventoryIsFull };
+    return { ok: false, error: TEXT.common.inventoryFull };
   }
 
   try {
@@ -423,6 +422,6 @@ export function givePlayerBook(player, war) {
     return { ok: true, value: bookName(war) };
   } catch (err) {
     console.warn(`[sigil] could not print the war record: ${err}`);
-    return { ok: false, error: TEXT.book.thatRecordCouldNotBe };
+    return { ok: false, error: TEXT.book.printFailed };
   }
 }

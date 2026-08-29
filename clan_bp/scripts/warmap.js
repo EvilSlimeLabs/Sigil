@@ -1,70 +1,43 @@
 // @ts-check
 /**
- * The War Map block: what happens when a player uses it, and what happens when
- * the thing holding it up goes away.
+ * The War Map block: its interaction, its placement rule, and the check that
+ * brings it down when the surface holding it up goes away.
  *
- * ── Why a custom component rather than only a world event ──────────────────
+ * ── Interaction ────────────────────────────────────────────────────────────
  *
- * `world.afterEvents.playerInteractWithBlock` fires when a player *uses an item
- * on* a block. A custom block the engine does not consider interactive absorbs
- * nothing from an empty hand, so right-clicking the map did nothing at all —
- * the only interaction that ever reached the handler was the one where the
- * player was holding another War Map and trying to place it, which is exactly
- * the behaviour that was reported.
+ * Two paths open the war screen, and either alone is enough.
  *
- * Registering `onPlayerInteract` is what tells the engine the block is worth
- * interacting with. Beside it, `world.beforeEvents.playerInteractWithBlock`
- * cancels the interaction outright, which is a second thing entirely: the map
- * has no collision box, so without it a torch or another block held at the time
- * is placed straight through the map instead of the map being used. Cancelling
- * makes the block swallow the press the way a chest does.
+ * The custom component's `onPlayerInteract` is what marks the block as
+ * interactive, which is what lets an empty-handed press reach a handler at all.
+ * Beside it, `world.beforeEvents.playerInteractWithBlock` cancels the
+ * interaction, so an item held at the time is not placed through the map. A
+ * sneaking player is exempt, which is the vanilla way to build against a block
+ * rather than use it.
  *
- * ── Why the walls collide and the floor does not ───────────────────────────
+ * Both paths can describe the same press. {@link openWarScreen} holds a short
+ * per-player cooldown so the screen opens once.
  *
- * A painting will not expand over a block the game reads as physically present,
- * and three builds were spent finding what it reads. A one-pixel selection box
- * tracing the panel is not enough — that is what the map first shipped with, and
- * paintings sized themselves straight over it. A collision box is enough, but
- * applied to every facing it costs the map the one quality an item frame most
- * obviously has: being a thing you walk through. A full 1x1x1 selection box also
- * works and costs nothing but an outline much larger than the panel, which is
- * ugly enough to have been rejected.
+ * ── Outline and collision ──────────────────────────────────────────────────
  *
- * So `blocks/war_map.json` splits it by facing. Paintings only ever hang on
- * walls, so the four wall permutations carry a one-pixel collision box laid
- * exactly over the panel — flush against the wall, where that wall's own
- * collision stops the player a pixel later and this one is never what they feel.
- * The floor variant has no collision at all and is walked straight over. Every
- * selection box traces its own panel, so the outline always follows the map.
+ * These live in `blocks/war_map.json` and are split by facing. A painting will
+ * not expand over a block the game reads as physically present, and a collision
+ * box is what it reads. Paintings hang only on walls, so the four wall
+ * permutations carry a one-pixel collision box lying exactly over the panel,
+ * flush against the wall; the floor variant has none and is walked over. Every
+ * selection box traces its own panel.
  *
- * Sneaking is exempt, because that is the vanilla way to say "build here, do
- * not interact", and a wall carrying a war map should not become a dead spot
- * where nothing can ever be placed.
+ * ── Placement ──────────────────────────────────────────────────────────────
  *
- * Both paths can describe one press, and {@link openWarScreen} de-duplicates,
- * so a game that delivers both does not open the screen twice.
+ * Two rules, both enforced here rather than declared as components.
+ * `beforeOnPlayerPlace` refuses a downward face, because there is no ceiling
+ * geometry and no support direction for one. It also refuses a cell with
+ * nothing behind it, which {@link canHangHere} decides.
  *
- * ── Why placement is policed here rather than declared ─────────────────────
+ * ── Support ────────────────────────────────────────────────────────────────
  *
- * The block used to carry `minecraft:placement_filter` with `allowed_faces` of
- * `["up", "side"]`. That component refuses any face it does not consider a full
- * one, so a map could not be hung on a top slab or the flat side of a staircase
- * — surfaces an item frame accepts without complaint. It has been removed, and
- * both rules it was carrying are enforced below instead: `beforeOnPlayerPlace`
- * refuses a downward face, and the tick below refuses to keep a map with
- * nothing behind it.
- *
- * The filter had also been quietly doing the pop-off for us — it drops a block
- * whose conditions stop holding. Losing that costs nothing, because the support
- * check was already here and already the thing being relied on.
- *
- * ── Why the map checks its own support ─────────────────────────────────────
- *
- * It hangs like a painting, so it should fall like one. Bedrock raises no
- * neighbour-changed event for scripts, so the block ticks slowly and asks
- * whether the surface it was mounted on is still there. Polling rather than
- * reacting means a map also comes down when its wall is removed by a command,
- * a piston or an explosion — cases a break handler would miss.
+ * The block ticks slowly and asks whether the surface it was mounted on is
+ * still there, because Bedrock raises no neighbour-changed event for scripts.
+ * Polling also catches a wall removed by a command, a piston or an explosion.
  */
 
 import { system, world, Direction, ItemStack } from '@minecraft/server';
@@ -93,12 +66,10 @@ const SUPPORT_OFFSET = {
   down: { x: 0, y: 1, z: 0 },
   north: { x: 0, y: 0, z: 1 },
   south: { x: 0, y: 0, z: -1 },
-  // The X axis does not follow the Z axis, and these two offsets do not follow
-  // the geometry either. A map hung on an east or west face renders against the
-  // wall when its panel is authored on the *opposite* side to the wall, so the
-  // model and this table disagree by design: the model says where the map is
-  // drawn, this says where the block holding it up actually is. Setting them to
-  // agree is what tore maps down a second after they were placed.
+  // The X axis runs opposite to the Z axis here, and opposite to the model:
+  // the geometry draws an east or west panel on the far side of its cell, while
+  // the supporting block sits on the near side. The model says where the map is
+  // drawn; this says where the block holding it up is.
   west: { x: 1, y: 0, z: 0 },
   east: { x: -1, y: 0, z: 0 },
 };
@@ -106,9 +77,8 @@ const SUPPORT_OFFSET = {
 /**
  * Ticks a second interaction from the same player is ignored for.
  *
- * Both the custom component and the world event can describe one press. Ten
- * ticks is long enough to swallow the duplicate and far short of the time it
- * takes a player to deliberately use the map twice.
+ * Long enough to swallow the duplicate press the two interaction paths can
+ * produce, and far short of the time a second intentional press takes.
  */
 const INTERACT_COOLDOWN_TICKS = 10;
 
@@ -141,16 +111,10 @@ export function forget(playerId) {
 /**
  * Whether a placed map still has its support.
  *
- * Deliberately looser than the test placement uses, and the asymmetry is the
- * point: this only has to notice the support being *removed*. Asking
- * `canPlace` here would be wrong twice over — the map's own cell is occupied by
- * the map, which is not a valid placement, so every map would be destroyed on
- * its first tick.
- *
- * A check that is more permissive than placement can only ever spare something
- * placement already allowed. The reverse — a tick stricter than placement —
- * would quietly delete blocks the game let you put down, which is the failure
- * worth designing against.
+ * Looser than the test placement uses, because this only has to notice the
+ * support being removed. A check more permissive than placement can only spare
+ * something placement already allowed; a stricter one would delete blocks the
+ * game let the player put down.
  *
  * @param {import('@minecraft/server').Block} block
  * @returns {boolean}
@@ -175,20 +139,11 @@ function isSupported(block) {
 /**
  * Whether a map may be hung here.
  *
- * Anything that is not air and not liquid. That is as permissive as it sounds,
- * and it is on purpose: paintings and item frames were tested against the same
- * surfaces and turned out to accept nearly everything, so matching them means
- * being loose rather than clever. A player who wants a map on a torch can have
- * one.
+ * Anything that is not air and not liquid, which is the same rule paintings and
+ * item frames follow: stairs, top slabs, glass, trapdoors, scaffolding and
+ * composters all hold a map, and so does a torch.
  *
- * This went through two stricter answers first, recorded so they are not
- * retried. `isSolid` means a *full cube* and refuses stairs, top slabs, glass,
- * trapdoors, scaffolding and composters. Asking `Block.canPlace` about an item
- * frame is exactly right in principle and simply is not needed, now that the
- * rule being matched is "almost anything".
- *
- * Fails open on an unrecognised direction or an unreadable neighbour: a block
- * that refuses to place is a worse bug than one that places somewhere odd.
+ * Fails open on an unrecognised direction or an unreadable neighbour.
  *
  * @param {import('@minecraft/server').Block} block the cell the map would fill
  * @param {string} facing the `minecraft:block_face` the map is being hung on
@@ -216,8 +171,8 @@ function collapse(block) {
   const dimension = block.dimension;
   const centre = { x: block.x + 0.5, y: block.y + 0.5, z: block.z + 0.5 };
 
-  // Drop first: if setting the block fails, the player is up an item rather
-  // than down a War Map with nothing to show for it.
+  // Dropped before the block is cleared, so a failure to clear leaves the
+  // player an extra item rather than none.
   try {
     dimension.spawnItem(new ItemStack(WAR_MAP_BLOCK, 1), centre);
   } catch (err) {
@@ -243,17 +198,15 @@ export function register(registry) {
   try {
     registry.registerCustomComponent(WAR_MAP_COMPONENT, {
       beforeOnPlayerPlace: (event) => {
-        // `face` is the face of the block being built against, so a downward
-        // one means the player is hanging the map from a ceiling. There is no
-        // ceiling geometry and no support direction for it, and a map that
-        // cannot be held up should not go up in the first place.
+        // `face` is the face being built against, so a downward one means the
+        // map is being hung from a ceiling. There is no ceiling geometry and no
+        // support direction for one.
         if (event.face === Direction.Down) {
           event.cancel = true;
           return;
         }
-        // Refuse now rather than drop a second later. The tick below is still
-        // the safety net for support that disappears afterwards, but a map that
-        // could never have stayed should not appear at all.
+        // Refused here rather than dropped a second later; the tick below
+        // still catches support that disappears afterwards.
         if (!canHangHere(event.block, String(event.face))) event.cancel = true;
       },
       onPlayerInteract: (event) => {
@@ -265,8 +218,8 @@ export function register(registry) {
       },
     });
   } catch (err) {
-    // The block still places and still opens its screen through the world
-    // event below; it just will not fall when its wall does.
+    // Without the component the block still places and still opens its screen
+    // through the world event below, but will not fall when its wall does.
     console.warn(`[sigil] could not register the war map component: ${err}`);
   }
 }
@@ -274,9 +227,8 @@ export function register(registry) {
 /**
  * Makes a placed map absorb the interaction rather than let it through.
  *
- * This is what stops a held item being placed over the map, and it doubles as
- * the interaction path for a game whose block component registry did not take
- * the registration above.
+ * Stops a held item being placed over the map, and doubles as the interaction
+ * path when the block component registry did not take the registration above.
  */
 export function subscribeInteractionGuard() {
   world.beforeEvents.playerInteractWithBlock.subscribe((event) => {
@@ -285,8 +237,7 @@ export function subscribeInteractionGuard() {
     // interactive block.
     if (event.player.isSneaking) return;
 
-    // Cancel whatever was in hand, including nothing: the map is the thing
-    // being used, not the surface behind it.
+    // Cancels whatever was in hand, including nothing.
     event.cancel = true;
 
     // The press repeats while the button is held; only the first opens a form.

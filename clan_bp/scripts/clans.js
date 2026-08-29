@@ -25,6 +25,7 @@ import * as settings from './settings.js';
 import { getString, setString, remove, getJson, setJson, setJsonGuarded, now } from './storage.js';
 import { normalizeKey, validateClanName, validateRoleName } from './format.js';
 import { identityChanged, clanDisbanded, clanUnderstrength } from './hooks.js';
+import * as staff from './staff.js';
 import { TEXT } from './text.js';
 
 /**
@@ -101,8 +102,8 @@ export function isOutpost(clan) {
  */
 export function demote(clanId) {
   const clan = getClan(clanId);
-  if (!clan) return { ok: false, error: TEXT.clan.thatClanNoLongerExists };
-  if (isOutpost(clan)) return { ok: false, error: TEXT.clan.isAlreadyAnOutpost(clan.name) };
+  if (!clan) return { ok: false, error: TEXT.common.clanGone };
+  if (isOutpost(clan)) return { ok: false, error: TEXT.clan.alreadyAnOutpost(clan.name) };
 
   clan.tier = TIER.outpost;
   saveClan(clan);
@@ -132,9 +133,9 @@ export function isUnderstrength(clan) {
  */
 export function promote(clanId) {
   const clan = getClan(clanId);
-  if (!clan) return { ok: false, error: TEXT.clan.thatClanNoLongerExists };
+  if (!clan) return { ok: false, error: TEXT.common.clanGone };
   if (!isOutpost(clan)) {
-    return { ok: false, error: TEXT.clan.isAlreadyAFullClan(clan.name) };
+    return { ok: false, error: TEXT.clan.alreadyAFullClan(clan.name) };
   }
 
   clan.tier = TIER.clan;
@@ -227,6 +228,22 @@ export function isOwner(clan, playerId) {
 }
 
 /**
+ * Whether a player may act on a clan: its own Leader, or staff with
+ * clan-management access.
+ *
+ * Every mutating flow asserts this for itself rather than trusting that the
+ * caller hid the button, because the screens are reachable from several
+ * directions.
+ *
+ * @param {import('@minecraft/server').Player} player
+ * @param {Clan} clan
+ * @returns {boolean}
+ */
+export function mayManage(player, clan) {
+  return isOwner(clan, player.id) || staff.canManageAnyClan(player);
+}
+
+/**
  * @param {Clan} clan
  * @param {string} playerId
  * @returns {boolean}
@@ -312,7 +329,7 @@ export function capacity(clan) {
  */
 export function createClan(ownerId, ownerName, rawName) {
   if (clanOf(ownerId)) {
-    return { ok: false, error: TEXT.clan.youAreAlreadyInA };
+    return { ok: false, error: TEXT.clan.alreadyInAClanLeaveFirst };
   }
 
   const validated = validateClanName(rawName);
@@ -320,7 +337,7 @@ export function createClan(ownerId, ownerName, rawName) {
   const name = validated.value;
 
   if (getString(KEY.clanName + normalizeKey(name)) !== undefined) {
-    return { ok: false, error: TEXT.clan.aClanNamedAlreadyExists(name) };
+    return { ok: false, error: TEXT.clan.nameTaken(name) };
   }
 
   const timestamp = now();
@@ -357,15 +374,15 @@ export function createClan(ownerId, ownerName, rawName) {
  */
 export function addMember(clanId, playerId, playerName) {
   const clan = getClan(clanId);
-  if (!clan) return { ok: false, error: TEXT.clan.thatClanNoLongerExists };
+  if (!clan) return { ok: false, error: TEXT.common.clanGone };
   if (isMember(clan, playerId)) {
-    return { ok: false, error: TEXT.clan.isAlreadyIn(playerName, clan.name) };
+    return { ok: false, error: TEXT.clan.targetAlreadyInThisClan(playerName, clan.name) };
   }
   if (clanOf(playerId)) {
-    return { ok: false, error: TEXT.clan.isAlreadyInAnotherClan(playerName) };
+    return { ok: false, error: TEXT.clan.targetInAnotherClan(playerName) };
   }
   if (isFull(clan)) {
-    return { ok: false, error: TEXT.clan.isFullMembers(clan.name, capacity(clan)) };
+    return { ok: false, error: TEXT.clan.clanFull(clan.name, capacity(clan)) };
   }
 
   clan.members[playerId] = { name: playerName, role: '', joinedAt: now() };
@@ -386,13 +403,13 @@ export function addMember(clanId, playerId, playerName) {
  */
 export function removeMember(clanId, playerId) {
   const clan = getClan(clanId);
-  if (!clan) return { ok: false, error: TEXT.clan.thatClanNoLongerExists };
+  if (!clan) return { ok: false, error: TEXT.common.clanGone };
   const member = clan.members[playerId];
-  if (!member) return { ok: false, error: TEXT.clan.thatPlayerIsNotIn };
+  if (!member) return { ok: false, error: TEXT.clan.notAMember };
   if (isOwner(clan, playerId)) {
     return {
       ok: false,
-      error: TEXT.clan.ownsTransferLeadershipOrDisband(member.name, clan.name),
+      error: TEXT.clan.ownerMustHandOver(member.name, clan.name),
     };
   }
 
@@ -418,11 +435,11 @@ export function removeMember(clanId, playerId) {
  */
 export function setMemberRole(clanId, playerId, rawRole) {
   const clan = getClan(clanId);
-  if (!clan) return { ok: false, error: TEXT.clan.thatClanNoLongerExists };
+  if (!clan) return { ok: false, error: TEXT.common.clanGone };
   const member = clan.members[playerId];
-  if (!member) return { ok: false, error: TEXT.clan.thatPlayerIsNotIn };
+  if (!member) return { ok: false, error: TEXT.clan.notAMember };
   if (isOwner(clan, playerId)) {
-    return { ok: false, error: TEXT.clan.theClanOwnerAlwaysHolds };
+    return { ok: false, error: TEXT.clan.ownerRoleIsFixed };
   }
 
   if (rawRole.trim() === '') {
@@ -459,7 +476,7 @@ export function setMemberRole(clanId, playerId, rawRole) {
  */
 export function rename(clanId, rawName) {
   const clan = getClan(clanId);
-  if (!clan) return { ok: false, error: TEXT.clan.thatClanNoLongerExists };
+  if (!clan) return { ok: false, error: TEXT.common.clanGone };
 
   const validated = validateClanName(rawName);
   if (!validated.ok) return validated;
@@ -477,7 +494,7 @@ export function rename(clanId, rawName) {
   }
 
   if (getString(KEY.clanName + normalizeKey(name)) !== undefined) {
-    return { ok: false, error: TEXT.clan.aClanNamedAlreadyExists(name) };
+    return { ok: false, error: TEXT.clan.nameTaken(name) };
   }
 
   const from = clan.name;
@@ -507,14 +524,14 @@ export function rename(clanId, rawName) {
  */
 export function setColor(clanId, code) {
   const clan = getClan(clanId);
-  if (!clan) return { ok: false, error: TEXT.clan.thatClanNoLongerExists };
+  if (!clan) return { ok: false, error: TEXT.common.clanGone };
 
   if (code === '') {
     delete clan.color;
   } else if (ROLE_COLOR_CHOICES.some((choice) => choice.code === code)) {
     clan.color = code;
   } else {
-    return { ok: false, error: TEXT.clan.thatIsNotAColour };
+    return { ok: false, error: TEXT.clan.colourNotOffered };
   }
 
   saveClan(clan);
@@ -549,13 +566,13 @@ export function colorOf(clan, defaults) {
  */
 export function addClanRole(clanId, rawRole) {
   const clan = getClan(clanId);
-  if (!clan) return { ok: false, error: TEXT.clan.thatClanNoLongerExists };
+  if (!clan) return { ok: false, error: TEXT.common.clanGone };
   const validated = validateRoleName(rawRole);
   if (!validated.ok) return validated;
   const role = validated.value;
 
   if (clan.roles.some((r) => r.toLowerCase() === role.toLowerCase())) {
-    return { ok: false, error: TEXT.clan.isAlreadyARoleIn(role, clan.name) };
+    return { ok: false, error: TEXT.clan.roleExists(role, clan.name) };
   }
 
   clan.roles.push(role);
@@ -572,10 +589,10 @@ export function addClanRole(clanId, rawRole) {
  */
 export function deleteClanRole(clanId, role) {
   const clan = getClan(clanId);
-  if (!clan) return { ok: false, error: TEXT.clan.thatClanNoLongerExists };
+  if (!clan) return { ok: false, error: TEXT.common.clanGone };
   const key = role.toLowerCase();
   if (!clan.roles.some((r) => r.toLowerCase() === key)) {
-    return { ok: false, error: TEXT.clan.isNotARoleIn(role, clan.name) };
+    return { ok: false, error: TEXT.clan.roleUnknown(role, clan.name) };
   }
 
   clan.roles = clan.roles.filter((r) => r.toLowerCase() !== key);
@@ -603,9 +620,9 @@ export function deleteClanRole(clanId, role) {
  */
 export function transferLeadership(clanId, newOwnerId) {
   const clan = getClan(clanId);
-  if (!clan) return { ok: false, error: TEXT.clan.thatClanNoLongerExists };
+  if (!clan) return { ok: false, error: TEXT.common.clanGone };
   const incoming = clan.members[newOwnerId];
-  if (!incoming) return { ok: false, error: TEXT.clan.thatPlayerIsNotIn };
+  if (!incoming) return { ok: false, error: TEXT.clan.notAMember };
   if (isOwner(clan, newOwnerId)) {
     return { ok: false, error: TEXT.clan.alreadyLeads(incoming.name, clan.name) };
   }
@@ -630,7 +647,7 @@ export function transferLeadership(clanId, newOwnerId) {
  */
 export function disband(clanId) {
   const clan = getClan(clanId);
-  if (!clan) return { ok: false, error: TEXT.clan.thatClanNoLongerExists };
+  if (!clan) return { ok: false, error: TEXT.common.clanGone };
   const memberIds = Object.keys(clan.members);
 
   for (const id of memberIds) remove(KEY.playerClan + id);

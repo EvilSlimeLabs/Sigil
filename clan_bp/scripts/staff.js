@@ -14,7 +14,14 @@
 
 import { PlayerPermissionLevel } from '@minecraft/server';
 import { KEY, DEFAULT_STAFF_ROLES, C } from './config.js';
-import { getString, setString, remove, getJson, setJson, idsWithPrefix } from './storage.js';
+import {
+  getString,
+  getJson,
+  setJson,
+  idsWithPrefix,
+  setRendered,
+  refreshRendered,
+} from './storage.js';
 import { slugify } from './format.js';
 import { TEXT } from './text.js';
 
@@ -85,11 +92,7 @@ export function roleOf(playerId) {
  * @param {string | undefined} roleId
  */
 export function assignRole(playerId, roleId) {
-  if (roleId === undefined) {
-    remove(KEY.staffAssign + playerId);
-  } else {
-    setString(KEY.staffAssign + playerId, roleId);
-  }
+  setRendered(playerId, KEY.staffAssign + playerId, roleId);
 }
 
 /**
@@ -123,7 +126,7 @@ export function createRole(spec) {
   while (roles.some((r) => r.id === id)) id = `${base}_${n++}`;
 
   if (roles.some((r) => r.name.toLowerCase() === spec.name.toLowerCase())) {
-    return { ok: false, error: TEXT.staffRole.aStaffRoleNamedAlready(spec.name) };
+    return { ok: false, error: TEXT.staffRole.nameTaken(spec.name) };
   }
 
   /** @type {StaffRole} */
@@ -151,17 +154,24 @@ export function createRole(spec) {
 export function updateRole(roleId, changes) {
   const roles = allRoles();
   const role = roles.find((r) => r.id === roleId);
-  if (!role) return { ok: false, error: TEXT.staffRole.thatStaffRoleNoLonger };
+  if (!role) return { ok: false, error: TEXT.staffRole.roleGone };
 
   if (
     changes.name !== undefined &&
     roles.some((r) => r.id !== roleId && r.name.toLowerCase() === changes.name?.toLowerCase())
   ) {
-    return { ok: false, error: TEXT.staffRole.aStaffRoleNamedAlready(changes.name) };
+    return { ok: false, error: TEXT.staffRole.nameTaken(changes.name) };
   }
 
   Object.assign(role, changes);
   saveRoles(roles);
+  // The role's tag is drawn from the role, not from the assignment, so a
+  // rename or a recolour changes what every holder renders as.
+  refreshRendered(
+    allAssignments()
+      .filter(({ role: held }) => held.id === roleId)
+      .map(({ playerId }) => playerId),
+  );
   return { ok: true, value: role };
 }
 
@@ -174,9 +184,9 @@ export function updateRole(roleId, changes) {
 export function deleteRole(roleId) {
   const roles = allRoles();
   const role = roles.find((r) => r.id === roleId);
-  if (!role) return { ok: false, error: TEXT.staffRole.thatStaffRoleNoLonger };
+  if (!role) return { ok: false, error: TEXT.staffRole.roleGone };
   if (role.builtin) {
-    return { ok: false, error: TEXT.staffRole.isABuiltInRole(role.name) };
+    return { ok: false, error: TEXT.staffRole.builtInCannotBeDeleted(role.name) };
   }
 
   saveRoles(roles.filter((r) => r.id !== roleId));
@@ -207,7 +217,7 @@ export function canManageAnyClan(player) {
  * would be invisible as well as pointless.
  *
  * Every other permission level may hold any role. A Visitor is never offered
- * one because they are filtered out of the picker before this is reached.
+ * one; the picker filters them out before this is reached.
  *
  * @param {Player} player
  * @returns {boolean}
@@ -229,11 +239,9 @@ export function mayHoldRole(player) {
  * Admins hold every power by definition, and never through a role — being an
  * operator is the whole permission, so no role lookup happens for them.
  *
- * A role stored before these fields existed answers `undefined`, and falls back
- * to `manageClans`. That is exactly the behaviour such a role had: the powers
- * used to be global switches that all defaulted on, so any clan-managing role
- * could do all five. Upgrading a world therefore changes nothing until an admin
- * edits a role.
+ * A role stored before these fields existed answers `undefined` and falls back
+ * to `manageClans`, so a clan-managing role keeps all five powers until an
+ * admin edits it.
  *
  * @param {Player} player
  * @param {StaffPower} power

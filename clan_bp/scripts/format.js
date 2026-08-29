@@ -2,9 +2,9 @@
 /**
  * Text sanitising, validation and small display helpers.
  *
- * Everything a player types passes through here before it is stored. The
- * central rule: strip `§` from all user input, so nobody can inject colour
- * codes or forge the admin symbol into their own clan or role name.
+ * Everything a player types passes through here before it is stored. `§` is
+ * stripped from all user input, so a colour code or a forged admin symbol
+ * cannot reach a clan or role name.
  */
 
 import { C, BUTTON_COLOR, LIMITS, LEADER_ROLE, MSG_PREFIX } from './config.js';
@@ -43,11 +43,11 @@ export function validateClanName(raw) {
   if (name.length < LIMITS.clanNameMin || name.length > LIMITS.clanNameMax) {
     return {
       ok: false,
-      error: TEXT.validate.clanNamesMustBeCharacters(LIMITS.clanNameMin, LIMITS.clanNameMax),
+      error: TEXT.validate.clanNameLength(LIMITS.clanNameMin, LIMITS.clanNameMax),
     };
   }
   if (!/^[A-Za-z0-9 _-]+$/.test(name)) {
-    return { ok: false, error: TEXT.validate.clanNamesMayOnlyUse };
+    return { ok: false, error: TEXT.validate.clanNameCharacters };
   }
   return { ok: true, value: name };
 }
@@ -63,14 +63,14 @@ export function validateRoleName(raw) {
   if (name.length < LIMITS.roleNameMin || name.length > LIMITS.roleNameMax) {
     return {
       ok: false,
-      error: TEXT.validate.roleNamesMustBeCharacters(LIMITS.roleNameMin, LIMITS.roleNameMax),
+      error: TEXT.validate.roleNameLength(LIMITS.roleNameMin, LIMITS.roleNameMax),
     };
   }
   if (!/^[A-Za-z0-9 _-]+$/.test(name)) {
-    return { ok: false, error: TEXT.validate.roleNamesMayOnlyUse };
+    return { ok: false, error: TEXT.validate.roleNameCharacters };
   }
   if (name.toLowerCase() === LEADER_ROLE.toLowerCase()) {
-    return { ok: false, error: TEXT.validate.isReservedForTheClan };
+    return { ok: false, error: TEXT.validate.roleNameReserved };
   }
   return { ok: true, value: name };
 }
@@ -87,11 +87,11 @@ export function validateStaffRoleName(raw) {
   if (name.length < LIMITS.roleNameMin || name.length > LIMITS.roleNameMax) {
     return {
       ok: false,
-      error: TEXT.validate.staffRoleNamesMustBe(LIMITS.roleNameMin, LIMITS.roleNameMax),
+      error: TEXT.validate.staffRoleNameLength(LIMITS.roleNameMin, LIMITS.roleNameMax),
     };
   }
   if (!/^[A-Za-z0-9 _-]+$/.test(name)) {
-    return { ok: false, error: TEXT.validate.staffRoleNamesMayOnly };
+    return { ok: false, error: TEXT.validate.staffRoleNameCharacters };
   }
   return { ok: true, value: name };
 }
@@ -105,7 +105,7 @@ export function validateStaffRoleName(raw) {
 export function validateStaffSymbol(raw) {
   const symbol = sanitize(raw);
   if (symbol.length === 0 || symbol.length > LIMITS.staffSymbolMax) {
-    return { ok: false, error: TEXT.validate.staffTagsMustBeCharacters(LIMITS.staffSymbolMax) };
+    return { ok: false, error: TEXT.validate.staffSymbolLength(LIMITS.staffSymbolMax) };
   }
   return { ok: true, value: symbol };
 }
@@ -203,10 +203,9 @@ export function buttonText(label) {
  * Text the caller has already broken is respected: each existing line is
  * wrapped on its own.
  *
- * The width is deliberately short of what the panel can physically fit. Left to
- * itself the engine runs a label right up to the scroll bar, so the text has a
- * margin on the left and none on the right and the whole form looks wrong;
- * breaking a few characters early buys the missing margin back.
+ * The width is short of what the panel physically fits. The engine runs a label
+ * right up to the scroll bar, leaving a margin on the left and none on the
+ * right; breaking a few characters early restores the missing margin.
  *
  * @param {string} text
  * @param {number} [width] visible characters a line may hold

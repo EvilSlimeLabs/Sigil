@@ -57,9 +57,8 @@ import { TEXT } from './text.js';
  * One clan's tally in one war.
  *
  * `adjust` is kept apart from `byPlayer` because a staff correction may or may
- * not belong to a particular member: crediting someone the kill they earned is
- * a different statement from adding a kill nobody can be named for, and the
- * record book should not present the second as the first.
+ * not belong to a particular member: a kill credited to someone is recorded
+ * against them, while one nobody can be named for is recorded on its own row.
  *
  * @typedef {object} WarSide
  * @property {number} adjust
@@ -351,25 +350,25 @@ export function canAnnul(player) {
  */
 export function declare(declaring, target, declaredBy) {
   if (declaring.id === target.id) {
-    return { ok: false, error: TEXT.war.aClanCannotGoTo };
+    return { ok: false, error: TEXT.war.cannotWarSelf };
   }
   if (clans.isOutpost(declaring)) {
-    return { ok: false, error: TEXT.war.isAnOutpostOutpostsCannot(declaring.name) };
+    return { ok: false, error: TEXT.war.outpostCannotDeclare(declaring.name) };
   }
   if (clans.isOutpost(target)) {
-    return { ok: false, error: TEXT.war.isAnOutpostAndCannot(target.name) };
+    return { ok: false, error: TEXT.war.outpostCannotBeTargeted(target.name) };
   }
   if (warBetween(declaring.id, target.id)) {
-    return { ok: false, error: TEXT.war.isAlreadyAtWarWith(declaring.name, target.name) };
+    return { ok: false, error: TEXT.war.alreadyAtWar(declaring.name, target.name) };
   }
 
   const limit = settings.warLimit();
   if (limit !== undefined) {
     if (warsFor(declaring.id).length >= limit) {
-      return { ok: false, error: TEXT.war.alreadyHoldsTheMaximumOf(declaring.name, limit) };
+      return { ok: false, error: TEXT.war.warLimitReached(declaring.name, limit) };
     }
     if (warsFor(target.id).length >= limit) {
-      return { ok: false, error: TEXT.war.alreadyHoldsTheMaximumOf(target.name, limit) };
+      return { ok: false, error: TEXT.war.warLimitReached(target.name, limit) };
     }
   }
 
@@ -419,9 +418,9 @@ export function declare(declaring, target, declaredBy) {
  */
 export function accept(warId) {
   const war = getWar(warId);
-  if (!war) return { ok: false, error: TEXT.war.thatWarNoLongerExists };
+  if (!war) return { ok: false, error: TEXT.war.warGone };
   if (war.state !== 'pending') {
-    return { ok: false, error: TEXT.war.thatDeclarationIsNoLonger };
+    return { ok: false, error: TEXT.war.declarationAlreadyAnswered };
   }
 
   war.state = 'active';
@@ -440,9 +439,9 @@ export function accept(warId) {
  */
 export function decline(warId) {
   const war = getWar(warId);
-  if (!war) return { ok: false, error: TEXT.war.thatWarNoLongerExists };
+  if (!war) return { ok: false, error: TEXT.war.warGone };
   if (war.state !== 'pending') {
-    return { ok: false, error: TEXT.war.thatDeclarationIsNoLonger };
+    return { ok: false, error: TEXT.war.declarationAlreadyAnswered };
   }
 
   const pair = pairId(war.clanA, war.clanB);
@@ -472,12 +471,12 @@ export function decline(warId) {
  */
 export function withdrawDeclaration(warId, clanId) {
   const war = getWar(warId);
-  if (!war) return { ok: false, error: TEXT.war.thatDeclarationNoLongerExists };
+  if (!war) return { ok: false, error: TEXT.war.declarationGone };
   if (war.state !== 'pending') {
-    return { ok: false, error: TEXT.war.thatWarHasAlreadyBegun };
+    return { ok: false, error: TEXT.war.warAlreadyBegun };
   }
   if (war.clanA !== clanId) {
-    return { ok: false, error: TEXT.war.onlyTheClanThatDeclared };
+    return { ok: false, error: TEXT.war.onlyDeclarerMayWithdraw };
   }
   return decline(warId);
 }
@@ -523,12 +522,12 @@ function finish(war, outcome, winner, loser, endedBy) {
  */
 export function surrender(warId, clanId, playerId) {
   const war = getWar(warId);
-  if (!war) return { ok: false, error: TEXT.war.thatWarNoLongerExists };
+  if (!war) return { ok: false, error: TEXT.war.warGone };
   if (war.state !== 'active') {
-    return { ok: false, error: TEXT.war.thatWarHasNotBegun };
+    return { ok: false, error: TEXT.war.warNotBegun };
   }
   if (war.clanA !== clanId && war.clanB !== clanId) {
-    return { ok: false, error: TEXT.war.thatClanIsNotIn };
+    return { ok: false, error: TEXT.war.clanNotInWar };
   }
 
   return { ok: true, value: finish(war, 'surrender', opponentOf(war, clanId), clanId, playerId) };
@@ -545,13 +544,13 @@ export function surrender(warId, clanId, playerId) {
  */
 export function offerPeace(warId, clanId, playerId) {
   const war = getWar(warId);
-  if (!war) return { ok: false, error: TEXT.war.thatWarNoLongerExists };
-  if (war.state !== 'active') return { ok: false, error: TEXT.war.thatWarIsNotBeing };
+  if (!war) return { ok: false, error: TEXT.war.warGone };
+  if (war.state !== 'active') return { ok: false, error: TEXT.war.warNotBeingFought };
   if (war.clanA !== clanId && war.clanB !== clanId) {
-    return { ok: false, error: TEXT.war.thatClanIsNotIn };
+    return { ok: false, error: TEXT.war.clanNotInWar };
   }
   if (war.peaceOfferedBy === clanId) {
-    return { ok: false, error: TEXT.war.youHaveAlreadyOfferedPeace };
+    return { ok: false, error: TEXT.war.peaceAlreadyOffered };
   }
 
   if (war.peaceOfferedBy === opponentOf(war, clanId)) {
@@ -572,9 +571,9 @@ export function offerPeace(warId, clanId, playerId) {
  */
 export function withdrawPeace(warId, clanId) {
   const war = getWar(warId);
-  if (!war) return { ok: false, error: TEXT.war.thatWarNoLongerExists };
+  if (!war) return { ok: false, error: TEXT.war.warGone };
   if (war.peaceOfferedBy !== clanId) {
-    return { ok: false, error: TEXT.war.youHaveNoPeaceOffer };
+    return { ok: false, error: TEXT.war.noPeaceOffer };
   }
   war.peaceOfferedBy = '';
   saveWar(war);
@@ -582,8 +581,8 @@ export function withdrawPeace(warId, clanId) {
 }
 
 /**
- * Closes a war with no winner. The staff escape hatch for a war both clans
- * have abandoned, and the reason surrender needs no override.
+ * Closes a war with no winner: the staff route for a war both clans have
+ * abandoned, recording no defeat against either side.
  *
  * @param {string} warId
  * @param {string} playerId
@@ -591,8 +590,8 @@ export function withdrawPeace(warId, clanId) {
  */
 export function annul(warId, playerId) {
   const war = getWar(warId);
-  if (!war) return { ok: false, error: TEXT.war.thatWarNoLongerExists };
-  if (war.state === 'ended') return { ok: false, error: TEXT.war.thatWarHasAlreadyEnded };
+  if (!war) return { ok: false, error: TEXT.war.warGone };
+  if (war.state === 'ended') return { ok: false, error: TEXT.war.warAlreadyEnded };
   return { ok: true, value: finish(war, 'annulled', '', '', playerId) };
 }
 
@@ -605,8 +604,8 @@ export function annul(warId, playerId) {
  */
 export function forfeit(warId, losingClanId) {
   const war = getWar(warId);
-  if (!war) return { ok: false, error: TEXT.war.thatWarNoLongerExists };
-  if (war.state === 'ended') return { ok: false, error: TEXT.war.thatWarHasAlreadyEnded };
+  if (!war) return { ok: false, error: TEXT.war.warGone };
+  if (war.state === 'ended') return { ok: false, error: TEXT.war.warAlreadyEnded };
 
   const survivor = opponentOf(war, losingClanId);
   // With the other clan gone too, there is nobody to award it to.
@@ -697,12 +696,12 @@ export function recordKill(killer, victim) {
  */
 export function adjustKills(warId, clanId, delta, target) {
   const war = getWar(warId);
-  if (!war) return { ok: false, error: TEXT.war.thatWarNoLongerExists };
+  if (!war) return { ok: false, error: TEXT.war.warGone };
   if (war.clanA !== clanId && war.clanB !== clanId) {
-    return { ok: false, error: TEXT.war.thatClanIsNotIn };
+    return { ok: false, error: TEXT.war.clanNotInWar };
   }
   if (!Number.isFinite(delta) || Math.round(delta) === 0) {
-    return { ok: false, error: TEXT.war.enterANonZeroWhole };
+    return { ok: false, error: TEXT.war.adjustmentMustBeWhole };
   }
 
   const side = war.sides[clanId];
@@ -722,7 +721,7 @@ export function adjustKills(warId, clanId, delta, target) {
   if (!onThisSide) {
     return {
       ok: false,
-      error: TEXT.war.didNotFightForIn(target.name, nameOf(war, clanId)),
+      error: TEXT.war.didNotFightForClan(target.name, nameOf(war, clanId)),
     };
   }
 

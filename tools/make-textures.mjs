@@ -231,7 +231,7 @@ function makeWarMap() {
     draw(cx - i, cy + i, MAP.inkSoft);
     draw(cx + i, cy + i, MAP.inkSoft);
   }
-  // The north mark. Kept deliberately small: drawn any larger it outweighs the
+  // The north mark, kept small: drawn any larger it outweighs the
   // rose it sits on, and because the rose's arm is one pixel wide the mark has
   // to be symmetric about that pixel's centre or the whole rose reads as
   // off-centre. Hence the half-pixel offsets rather than round numbers.

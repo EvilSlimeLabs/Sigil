@@ -27,7 +27,6 @@
 
 import {
   system,
-  world,
   Player,
   CommandPermissionLevel,
   CustomCommandParamType,
@@ -64,7 +63,7 @@ function asPlayer(handler) {
     if (!(source instanceof Player)) {
       return {
         status: CustomCommandStatus.Failure,
-        message: TEXT.cmd.thisCommandCanOnlyBe,
+        message: TEXT.cmd.playersOnly,
       };
     }
 
@@ -73,7 +72,7 @@ function asPlayer(handler) {
         handler(source, ...args);
       } catch (err) {
         console.warn(`[sigil] command failed for ${source.name}: ${err}`);
-        source.sendMessage(errorMsg(TEXT.cmd.somethingWentWrongRunningThat));
+        source.sendMessage(errorMsg(TEXT.cmd.commandFailed));
       }
     });
     return { status: CustomCommandStatus.Success };
@@ -106,14 +105,6 @@ function ownClanOrWarn(player) {
   return clan;
 }
 
-/**
- * @param {Player} player
- * @param {import('./clans.js').Clan} clan
- * @returns {boolean}
- */
-function mayManage(player, clan) {
-  return clans.isOwner(clan, player.id) || staff.canManageAnyClan(player);
-}
 
 /**
  * Announces a message to every member of a clan who is online.
@@ -149,10 +140,10 @@ function handleCreate(player, name, targetArg) {
     }
     player.sendMessage(
       msg(
-        TEXT.cmd.requestedTheClanAnAdmin(filed.value.name),
+        TEXT.cmd.creationRequestFiled(filed.value.name),
       ),
     );
-    notifyReviewers(filed.value);
+    requests.notifyReviewers(filed.value);
     return;
   }
 
@@ -161,7 +152,7 @@ function handleCreate(player, name, targetArg) {
     player.sendMessage(errorMsg(result.error));
     return;
   }
-  player.sendMessage(successMsg(TEXT.cmd.clanCreatedYouAreIts(result.value.name)));
+  player.sendMessage(successMsg(TEXT.cmd.clanCreated(result.value.name)));
   announce.clanCreated(result.value.name, player.name);
 }
 
@@ -190,34 +181,11 @@ function createFor(player, target, name) {
     return;
   }
 
-  player.sendMessage(successMsg(TEXT.cmd.createdTheOutpostFor(result.value.name, target.name)));
-  target.sendMessage(msg(TEXT.cmd.anAdminCreatedTheOutpost(result.value.name)));
+  player.sendMessage(successMsg(TEXT.cmd.outpostCreatedFor(result.value.name, target.name)));
+  target.sendMessage(msg(TEXT.cmd.adminCreatedYourOutpost(result.value.name)));
   announce.clanCreated(result.value.name, target.name);
 }
 
-/**
- * Tells everyone able to review that a request is waiting.
- *
- * @param {import('./requests.js').ClanRequest} request
- */
-function notifyReviewers(request) {
-  for (const reviewer of world.getAllPlayers()) {
-    if (!requests.canApproveRequest(reviewer, request)) continue;
-    // A promotion and a rename are not "requesting a clan"; one notice worded
-    // for creation was wrong for the other two.
-    const notice =
-      request.kind === 'promote'
-        ? TEXT.cmd.reviewNoticePromote(request.requesterName, request.name)
-        : request.kind === 'rename'
-          ? TEXT.cmd.reviewNoticeRename(
-              request.requesterName,
-              request.name,
-              request.newName ?? '',
-            )
-          : TEXT.cmd.reviewNoticeCreate(request.requesterName, request.name);
-    reviewer.sendMessage(msg(notice));
-  }
-}
 
 /**
  * @param {Player} player
@@ -267,12 +235,12 @@ function handleLedger(player) {
   // is held, so a second is only ever clutter — and asking for one is how a
   // player who has misplaced theirs in a full inventory ends up with two.
   if (hasLedger(player)) {
-    player.sendMessage(msg(TEXT.cmd.youAlreadyHaveAClanMenu));
+    player.sendMessage(msg(TEXT.cmd.ledgerAlreadyHeld));
     return;
   }
 
   if (giveLedger(player)) {
-    player.sendMessage(successMsg(TEXT.cmd.hereIsYourClanMenu));
+    player.sendMessage(successMsg(TEXT.cmd.ledgerGiven));
   } else {
     player.sendMessage(errorMsg(TEXT.common.inventoryFull));
   }
@@ -306,10 +274,10 @@ function handleInvite(player, targetArg) {
     return;
   }
 
-  player.sendMessage(successMsg(TEXT.cmd.invitedTo(target.name, clan.name)));
+  player.sendMessage(successMsg(TEXT.cmd.inviteSent(target.name, clan.name)));
   target.sendMessage(
     msg(
-      TEXT.cmd.invitedYouToJoinUse(player.name, clan.name),
+      TEXT.cmd.inviteReceived(player.name, clan.name),
     ),
   );
 }
@@ -320,7 +288,7 @@ function handleInvite(player, targetArg) {
 function handleInvites(player) {
   const pending = invites.pendingFor(player.id);
   if (pending.length === 0) {
-    player.sendMessage(msg(TEXT.cmd.youHaveNoPendingClan));
+    player.sendMessage(msg(TEXT.cmd.noPendingInvitesLine));
     return;
   }
 
@@ -328,7 +296,7 @@ function handleInvites(player) {
     (invite) => `${C.gray} - ${C.aqua}${invite.clanName} ${C.gray}(from ${invite.byName})`,
   );
   player.sendMessage(
-    msg(TEXT.cmd.pendingInvitesAcceptWithClan(lines.join('\n'))),
+    msg(TEXT.cmd.pendingInvitesList(lines.join('\n'))),
   );
 }
 
@@ -342,7 +310,7 @@ function handleInvites(player) {
 function resolveInvite(player, clanName) {
   const pending = invites.pendingFor(player.id);
   if (pending.length === 0) {
-    player.sendMessage(errorMsg(TEXT.cmd.youHaveNoPendingClan2));
+    player.sendMessage(errorMsg(TEXT.cmd.noPendingInvites));
     return undefined;
   }
 
@@ -350,7 +318,7 @@ function resolveInvite(player, clanName) {
     if (pending.length === 1) return pending[0];
     player.sendMessage(
       errorMsg(
-        TEXT.cmd.youHavePendingInvitesName(pending.length, pending.map((i) => i.clanName).join(', ')),
+        TEXT.cmd.nameOneInvite(pending.length, pending.map((i) => i.clanName).join(', ')),
       ),
     );
     return undefined;
@@ -358,7 +326,7 @@ function resolveInvite(player, clanName) {
 
   const match = invites.findByClanName(player.id, clanName);
   if (!match) {
-    player.sendMessage(errorMsg(TEXT.cmd.youHaveNoPendingInvite(clanName)));
+    player.sendMessage(errorMsg(TEXT.cmd.noInviteFromClan(clanName)));
     return undefined;
   }
   return match;
@@ -382,7 +350,7 @@ function handleAccept(player, clanName) {
   announce.memberJoined(result.value.name, player.name);
   for (const id of Object.keys(result.value.members)) {
     if (id !== player.id) {
-      players.notify(id, msg(TEXT.cmd.joinedTheClan(player.name)));
+      players.notify(id, msg(TEXT.cmd.memberJoined(player.name)));
     }
   }
 }
@@ -396,10 +364,10 @@ function handleDeny(player, clanName) {
   if (!invite) return;
 
   invites.decline(player.id, invite);
-  player.sendMessage(msg(TEXT.cmd.declinedTheInviteFrom(invite.clanName)));
+  player.sendMessage(msg(TEXT.cmd.declineConfirmed(invite.clanName)));
   players.notify(
     invite.byId,
-    msg(TEXT.cmd.declinedYourInviteTo(player.name, invite.clanName)),
+    msg(TEXT.cmd.inviteDeclined(player.name, invite.clanName)),
   );
 }
 
@@ -416,11 +384,11 @@ function handleKick(player, targetArg) {
 
   const clan = clans.clanOf(target.id);
   if (!clan) {
-    player.sendMessage(errorMsg(TEXT.cmd.isNotInAClan(target.name)));
+    player.sendMessage(errorMsg(TEXT.cmd.namedNotInAClan(target.name)));
     return;
   }
-  if (!mayManage(player, clan)) {
-    player.sendMessage(errorMsg(TEXT.cmd.youCannotRemoveMembersFrom(clan.name)));
+  if (!clans.mayManage(player, clan)) {
+    player.sendMessage(errorMsg(TEXT.cmd.cannotRemoveFrom(clan.name)));
     return;
   }
 
@@ -430,10 +398,10 @@ function handleKick(player, targetArg) {
     return;
   }
 
-  player.sendMessage(successMsg(TEXT.cmd.removedFrom(result.value, clan.name)));
+  player.sendMessage(successMsg(TEXT.cmd.removeConfirmed(result.value, clan.name)));
   announce.memberLeft(clan.name, result.value, true);
-  target.sendMessage(msg(TEXT.cmd.youWereRemovedFrom(clan.name)));
-  tellClan(clan, msg(TEXT.cmd.wasRemovedFromTheClan(result.value)));
+  target.sendMessage(msg(TEXT.cmd.youWereRemoved(clan.name)));
+  tellClan(clan, msg(TEXT.cmd.memberWasRemoved(result.value)));
 }
 
 /**
@@ -462,11 +430,11 @@ function handleRole(player, targetArg, role) {
   }
 
   if (result.value === '') {
-    player.sendMessage(successMsg(TEXT.cmd.clearedSRole(target.name)));
-    target.sendMessage(msg(TEXT.cmd.yourRoleInWasCleared(clan.name)));
+    player.sendMessage(successMsg(TEXT.cmd.roleCleared(target.name)));
+    target.sendMessage(msg(TEXT.cmd.yourRoleCleared(clan.name)));
   } else {
-    player.sendMessage(successMsg(TEXT.cmd.isNow(target.name, result.value)));
-    target.sendMessage(msg(TEXT.cmd.youAreNowIn(result.value, clan.name)));
+    player.sendMessage(successMsg(TEXT.cmd.roleSet(target.name, result.value)));
+    target.sendMessage(msg(TEXT.cmd.yourRoleIsNow(result.value, clan.name)));
   }
 }
 
@@ -480,7 +448,7 @@ function handleLeave(player) {
   if (clans.isOwner(clan, player.id)) {
     player.sendMessage(
       errorMsg(
-        TEXT.cmd.youOwnTransferLeadershipWith(clan.name),
+        TEXT.cmd.ownerMustHandOver(clan.name),
       ),
     );
     return;
@@ -494,7 +462,7 @@ function handleLeave(player) {
 
   player.sendMessage(msg(TEXT.cmd.youLeft(clan.name)));
   announce.memberLeft(clan.name, player.name, false);
-  tellClan(clan, msg(TEXT.cmd.leftTheClan(player.name)));
+  tellClan(clan, msg(TEXT.cmd.memberLeft(player.name)));
 }
 
 /**
@@ -503,8 +471,8 @@ function handleLeave(player) {
 function handleDisband(player) {
   const clan = ownClanOrWarn(player);
   if (!clan) return;
-  if (!mayManage(player, clan)) {
-    player.sendMessage(errorMsg(TEXT.cmd.onlyTheClanOwnerCan));
+  if (!clans.mayManage(player, clan)) {
+    player.sendMessage(errorMsg(TEXT.cmd.onlyOwnerMayDisband));
     return;
   }
 
@@ -518,10 +486,10 @@ function handleDisband(player) {
   // Outstanding invites are held by non-members, so they need their own sweep.
   invites.revokeAllForClan(clan.id);
   for (const id of memberIds) {
-    players.notify(id, msg(TEXT.cmd.wasDisbanded(result.value.name)));
+    players.notify(id, msg(TEXT.cmd.clanWasDisbanded(result.value.name)));
   }
   announce.clanDisbanded(result.value.name);
-  player.sendMessage(successMsg(TEXT.cmd.disbanded(result.value.name)));
+  player.sendMessage(successMsg(TEXT.cmd.disbandConfirmed(result.value.name)));
 }
 
 /**
@@ -537,11 +505,11 @@ function handleTransfer(player, targetArg) {
 
   const clan = clans.clanOf(target.id);
   if (!clan) {
-    player.sendMessage(errorMsg(TEXT.cmd.isNotInAClan(target.name)));
+    player.sendMessage(errorMsg(TEXT.cmd.namedNotInAClan(target.name)));
     return;
   }
-  if (!mayManage(player, clan)) {
-    player.sendMessage(errorMsg(TEXT.cmd.youCannotChangeLeadershipOf(clan.name)));
+  if (!clans.mayManage(player, clan)) {
+    player.sendMessage(errorMsg(TEXT.cmd.cannotChangeLeadership(clan.name)));
     return;
   }
 
@@ -554,7 +522,7 @@ function handleTransfer(player, targetArg) {
   player.sendMessage(successMsg(TEXT.cmd.nowLeads(result.value.newOwnerName, clan.name)));
   tellClan(
     clan,
-    msg(TEXT.cmd.isNowTheOf(result.value.newOwnerName, clan.name)),
+    msg(TEXT.cmd.memberRoleAnnounced(result.value.newOwnerName, clan.name)),
   );
 }
 
@@ -568,7 +536,7 @@ function handleInfo(player, targetArg) {
 
   if (!clan) {
     player.sendMessage(
-      msg(target.id === player.id ? TEXT.cmd.youAreNotInA : TEXT.cmd.isNotInAClan2(target.name)),
+      msg(target.id === player.id ? TEXT.cmd.notInAClan : TEXT.cmd.targetNotInAClan(target.name)),
     );
     return;
   }
@@ -586,7 +554,7 @@ function handleInfo(player, targetArg) {
   const roleLabel = target.id === player.id ? TEXT.cmd.yourRole : `${target.name}'s role`;
   player.sendMessage(
     msg(
-      TEXT.cmd.memberS3(clan.name, clans.memberCount(clan), roleLabel, clans.roleOf(clan, target.id) || TEXT.fragment.noRole, rows),
+      TEXT.cmd.clanSummary(clan.name, clans.memberCount(clan), roleLabel, clans.roleOf(clan, target.id) || TEXT.fragment.noRole, rows),
     ),
   );
 }
@@ -597,7 +565,7 @@ function handleInfo(player, targetArg) {
 function handleList(player) {
   const all = clans.allClans();
   if (all.length === 0) {
-    player.sendMessage(msg(TEXT.cmd.noClansExistYetCreate));
+    player.sendMessage(msg(TEXT.cmd.noClansYet));
     return;
   }
 
@@ -638,12 +606,12 @@ function handleStaff(player) {
  */
 function handleStatus(player) {
   if (!staff.isAdmin(player)) {
-    player.sendMessage(errorMsg(TEXT.cmd.onlyAdminsCanViewAdd));
+    player.sendMessage(errorMsg(TEXT.cmd.onlyAdminsMayViewStatus));
     return;
   }
   player.sendMessage(
     msg(
-      TEXT.cmd.clansStatusChatClansStaff(display.chatStatus(), clans.clanIds().length, staff.allRoles().length),
+      TEXT.cmd.statusReport(display.chatStatus(), clans.clanIds().length, staff.allRoles().length),
     ),
   );
 }
@@ -665,7 +633,7 @@ function handleRename(player, name) {
     const renamed = clans.rename(clan.id, name);
     player.sendMessage(
       renamed.ok
-        ? successMsg(TEXT.cmd.isNow(renamed.value.from, renamed.value.to))
+        ? successMsg(TEXT.cmd.roleSet(renamed.value.from, renamed.value.to))
         : errorMsg(renamed.error),
     );
     return;
@@ -677,9 +645,9 @@ function handleRename(player, name) {
     return;
   }
   player.sendMessage(
-    msg(TEXT.cmd.requestedTheNameAwaitingReview(filed.value.newName)),
+    msg(TEXT.cmd.renameRequested(filed.value.newName)),
   );
-  notifyReviewers(filed.value);
+  requests.notifyReviewers(filed.value);
 }
 
 /**
@@ -701,7 +669,7 @@ function handleWar(player) {
 function handleWars(player) {
   const active = wars.liveWars().filter((war) => war.state === 'active');
   if (active.length === 0) {
-    player.sendMessage(msg(TEXT.cmd.noWarsAreBeingFought));
+    player.sendMessage(msg(TEXT.cmd.noActiveWars));
     return;
   }
 
@@ -727,7 +695,7 @@ function handleWarMap(player) {
   const clan = ownClanOrWarn(player);
   if (!clan) return;
   if (!clans.isOwner(clan, player.id) && !staff.isAdmin(player)) {
-    player.sendMessage(errorMsg(TEXT.cmd.onlyTheClanLeaderCan));
+    player.sendMessage(errorMsg(TEXT.cmd.onlyLeaderMayGetWarMap));
     return;
   }
 
@@ -735,13 +703,13 @@ function handleWarMap(player) {
   // screen from the same wall, so asking for one you already have should say so
   // rather than fill another inventory slot.
   if (hasWarMap(player)) {
-    player.sendMessage(msg(TEXT.cmd.youAlreadyHaveAWarMap));
+    player.sendMessage(msg(TEXT.cmd.warMapAlreadyHeld));
     return;
   }
 
   if (giveWarMap(player)) {
     player.sendMessage(
-      successMsg(TEXT.cmd.hereIsYourWarMap),
+      successMsg(TEXT.cmd.warMapGiven),
     );
   } else {
     player.sendMessage(errorMsg(TEXT.common.inventoryFull));
@@ -765,18 +733,18 @@ function handleWarKills(player, clanName, delta, targetArg) {
 
   const clan = clans.clanByName(clanName);
   if (!clan) {
-    player.sendMessage(errorMsg(TEXT.cmd.thereIsNoClanNamed(clanName)));
+    player.sendMessage(errorMsg(TEXT.cmd.noSuchClan(clanName)));
     return;
   }
 
   const active = wars.warsFor(clan.id).filter((war) => war.state === 'active');
   if (active.length === 0) {
-    player.sendMessage(errorMsg(TEXT.cmd.isNotInAnActive(clan.name)));
+    player.sendMessage(errorMsg(TEXT.cmd.notInAnActiveWar(clan.name)));
     return;
   }
   if (active.length > 1) {
     player.sendMessage(
-      errorMsg(TEXT.cmd.isInWarsUseThe(clan.name, active.length)),
+      errorMsg(TEXT.cmd.inSeveralWars(clan.name, active.length)),
     );
     return;
   }
@@ -798,8 +766,8 @@ function handleWarKills(player, clanName, delta, targetArg) {
   player.sendMessage(
     successMsg(
       target
-        ? TEXT.cmd.nowHasKillSTotals(target.name, result.value.playerKills ?? 0, clan.name, result.value.total)
-        : TEXT.cmd.nowTotalsWarKillS(clan.name, result.value.total),
+        ? TEXT.cmd.memberKillsAdjusted(target.name, result.value.playerKills ?? 0, clan.name, result.value.total)
+        : TEXT.cmd.clanKillsAdjusted(clan.name, result.value.total),
     ),
   );
 }
@@ -814,14 +782,14 @@ function handleWarHistory(player, clanName) {
   const clan = clanName ? clans.clanByName(clanName) : clans.clanOf(player.id);
   if (!clan) {
     player.sendMessage(
-      errorMsg(clanName ? TEXT.cmd.thereIsNoClanNamed2(clanName) : TEXT.common.notInAClan),
+      errorMsg(clanName ? TEXT.cmd.noSuchClan(clanName) : TEXT.common.notInAClan),
     );
     return;
   }
 
   const history = wars.historyFor(clan.id);
   if (history.length === 0) {
-    player.sendMessage(msg(TEXT.cmd.hasFoughtNoWarsTo(clan.name)));
+    player.sendMessage(msg(TEXT.cmd.noFinishedWars(clan.name)));
     return;
   }
 
@@ -839,7 +807,7 @@ function handleWarHistory(player, clanName) {
     );
   });
   player.sendMessage(
-    msg(TEXT.cmd.warHistoryPrintOneWith(clan.name, lines.join('\n'))),
+    msg(TEXT.cmd.warHistoryList(clan.name, lines.join('\n'))),
   );
 }
 
@@ -864,7 +832,7 @@ function handleWarBook(player, clanName, ordinalArg, opponentName) {
     clanName === undefined ? clans.clanOf(player.id) : clans.clanByName(clanName);
   if (!clan) {
     player.sendMessage(
-      errorMsg(clanName === undefined ? TEXT.common.notInAClan : TEXT.cmd.thereIsNoClanNamed2(clanName)),
+      errorMsg(clanName === undefined ? TEXT.common.notInAClan : TEXT.cmd.noSuchClan(clanName)),
     );
     return;
   }
@@ -877,7 +845,7 @@ function handleWarBook(player, clanName, ordinalArg, opponentName) {
   const own = clans.clanOf(player.id);
   const isTheirLeader = own !== undefined && own.id === clan.id && clans.isOwner(own, player.id);
   if (!isTheirLeader && !wars.canGenerateWarBooks(player)) {
-    player.sendMessage(errorMsg(TEXT.cmd.youCannotPrintSWar(clan.name)));
+    player.sendMessage(errorMsg(TEXT.cmd.cannotPrintRecords(clan.name)));
     return;
   }
 
@@ -891,7 +859,7 @@ function handleWarBook(player, clanName, ordinalArg, opponentName) {
   if (opponentName !== undefined) {
     const opponent = clans.clanByName(opponentName);
     if (!opponent) {
-      player.sendMessage(errorMsg(TEXT.cmd.thereIsNoClanNamed(opponentName)));
+      player.sendMessage(errorMsg(TEXT.cmd.noSuchClan(opponentName)));
       return;
     }
     candidates = candidates.filter(
@@ -901,7 +869,7 @@ function handleWarBook(player, clanName, ordinalArg, opponentName) {
 
   if (candidates.length === 0) {
     player.sendMessage(
-      errorMsg(TEXT.cmd.hasNoFinishedWarNumbered(clan.name, ordinalArg)),
+      errorMsg(TEXT.cmd.noSuchFinishedWar(clan.name, ordinalArg)),
     );
     return;
   }
@@ -912,7 +880,7 @@ function handleWarBook(player, clanName, ordinalArg, opponentName) {
       .join(', ');
     player.sendMessage(
       errorMsg(
-        TEXT.cmd.hasWarsNumberedAgainstName(clan.name, candidates.length, ordinalArg, against, clan.name, ordinalArg),
+        TEXT.cmd.nameOneWar(clan.name, candidates.length, ordinalArg, against, clan.name, ordinalArg),
       ),
     );
     return;

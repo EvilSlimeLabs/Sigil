@@ -5,9 +5,8 @@
  *
  * Stored as one record rather than a property per switch, because settings are
  * small and always read together. Reads merge the stored record over the
- * defaults, so a world configured by an older version of the pack picks up new
- * switches at their default value instead of reading them as `undefined` — the
- * failure mode where a new notification category silently never fires.
+ * defaults, so a world configured by an older version of the pack reads new
+ * switches at their default value rather than as `undefined`.
  *
  * Editing any of these is admin-only (`canManageSettings`). That includes
  * `staffCanApproveClans`, so a clan-managing staff role can never widen its own
@@ -53,13 +52,12 @@ import { settingsChanged } from './hooks.js';
  * so `nameOrder` is a real position in the same sequence as the rest: anything
  * ordered below it is drawn before the name, anything above it after.
  *
- * There is deliberately no setting for the brackets around the whole author.
- * Bedrock composes the chat author as prefix + name + suffix and then draws its
- * own angle brackets around the result, so everything written here lands inside
- * them and no property removes them. The only way to control them is to cancel
- * each message and re-broadcast a replacement — the fallback path below, which
- * discards native chat behaviour and takes chat down with it if the handler
- * ever throws. Not worth it for punctuation. The outer brackets are an engine
+ * There is no setting for the brackets around the whole author. Bedrock
+ * composes the chat author as prefix + name + suffix and draws its own angle
+ * brackets around the result, so everything written here lands inside them and
+ * no property removes them. Cancelling each message and re-broadcasting a
+ * replacement — the fallback path below — is the only route to changing them,
+ * and it discards native chat behaviour. The outer brackets are an engine
  * limitation and are left alone.
  *
  * @typedef {object} ChatSettings
@@ -127,11 +125,9 @@ import { settingsChanged } from './hooks.js';
 
 /**
  * @typedef {object} Settings
- * What a staff role may do is deliberately *not* here. Those five switches used
- * to live in this record, which meant a server could not have one role that
- * reviews clans and another that only corrects war kills — the switch applied to
- * every clan-managing role at once. They are fields on the role now; see
- * `StaffRole` in `config.js`.
+ * What a staff role may do is not here. Those five switches are fields on the
+ * role itself, so one role can review clans while another only corrects war
+ * kills; see `StaffRole` in `config.js`.
  *
  * @property {boolean} requireClanApproval   clan creation goes to review first
  * @property {number} opPollSeconds          how often operator status is re-checked
@@ -175,8 +171,8 @@ const DEFAULTS = {
     },
     chat: {
       showClanRole: true,
-      // The clan tag was hard-coded in square brackets before this; the style
-      // and its colour are settings now, on the same footing as the nametag's.
+      // The clan tag's bracket style and colour are settings, on the same
+      // footing as the nametag's.
       clanBrackets: 'square',
       clanBracketColor: C.darkGray,
       // The system title sits at the very start of the message; Peaceful comes
@@ -190,10 +186,9 @@ const DEFAULTS = {
     },
     admin: { symbol: '✦', name: 'Admin', color: C.red, showAs: 'symbol', brackets: 'off', bracketColor: C.darkGray },
     peaceful: { symbol: '☮', name: 'Peaceful', color: C.green, showAs: 'symbol', brackets: 'off', bracketColor: C.darkGray, visibility: 'both' },
-    // Three colours that read apart from each other at a glance and none of
-    // which is the grey the chat window itself uses. The outpost tone is
-    // deliberately unlike the clan tone: the tier should be visible without
-    // reading the word.
+    // Three colours that read apart at a glance, none of them the grey the chat
+    // window uses. The outpost tone is unlike the clan tone so the tier is
+    // visible without reading the word.
     colors: { clan: C.green, role: C.aqua, outpost: C.purple },
   },
   notifications: {

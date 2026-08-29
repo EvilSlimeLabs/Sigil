@@ -139,27 +139,27 @@ export function revokeAllForClan(clanId) {
  */
 export function invite(clan, from, to) {
   if (to.id === from.id) {
-    return { ok: false, error: TEXT.invite.youCannotInviteYourself };
+    return { ok: false, error: TEXT.invite.cannotInviteYourself };
   }
   // Checked in the domain rather than in each caller: the picker filters
   // visitors out of its list, but `/clan:invite` takes a player selector and
   // would otherwise walk straight past that filter.
   if (players.isKnownVisitor(to.id)) {
-    return { ok: false, error: TEXT.invite.cannotInviteAVisitor(to.name) };
+    return { ok: false, error: TEXT.invite.visitorCannotJoin(to.name) };
   }
   if (clans.isMember(clan, to.id)) {
-    return { ok: false, error: TEXT.invite.isAlreadyIn(to.name, clan.name) };
+    return { ok: false, error: TEXT.clan.targetAlreadyInThisClan(to.name, clan.name) };
   }
   if (clans.clanOf(to.id)) {
-    return { ok: false, error: TEXT.invite.isAlreadyInAnotherClan(to.name) };
+    return { ok: false, error: TEXT.clan.targetInAnotherClan(to.name) };
   }
   if (clans.isFull(clan)) {
-    return { ok: false, error: TEXT.invite.isFullMembers(clan.name, clans.capacity(clan)) };
+    return { ok: false, error: TEXT.clan.clanFull(clan.name, clans.capacity(clan)) };
   }
 
   const pending = pendingFor(to.id);
   if (pending.some((i) => i.clanId === clan.id)) {
-    return { ok: false, error: TEXT.invite.alreadyHasAPendingInvite(to.name, clan.name) };
+    return { ok: false, error: TEXT.invite.invitePending(to.name, clan.name) };
   }
 
   const timestamp = now();
@@ -231,17 +231,17 @@ export function accept(player, pendingInvite) {
     (i) => i.clanId === pendingInvite.clanId && i.at === pendingInvite.at,
   );
   if (!stillPending) {
-    return { ok: false, error: TEXT.invite.thatInviteIsNoLonger };
+    return { ok: false, error: TEXT.invite.inviteExpired };
   }
 
   if (clans.clanOf(player.id)) {
-    return { ok: false, error: TEXT.invite.youAreAlreadyInA };
+    return { ok: false, error: TEXT.invite.alreadyInAClanJoinAnother };
   }
 
   const clan = clans.getClan(pendingInvite.clanId);
   if (!clan) {
     revoke(player.id, pendingInvite.clanId);
-    return { ok: false, error: TEXT.invite.noLongerExists(pendingInvite.clanName) };
+    return { ok: false, error: TEXT.invite.namedClanGone(pendingInvite.clanName) };
   }
 
   const added = clans.addMember(clan.id, player.id, player.name);
