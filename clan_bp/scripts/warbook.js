@@ -25,11 +25,21 @@
  */
 
 import { ItemStack } from '@minecraft/server';
-import { BOOK_ITEM, LIMITS, WAR_STAMP } from './config.js';
+import { BOOK_ITEM, C, LIMITS, WAR_STAMP } from './config.js';
 import * as wars from './wars.js';
 import { TEXT } from './text.js';
 
 /** @typedef {import('./wars.js').War} War */
+
+/**
+ * What separates the human half of a stamped lore line from the war id.
+ *
+ * The label beside it is translatable and lives in the catalogue, because it is
+ * text a player reads. This is not: it is the token the id is found by, and a
+ * translator changing it would orphan every book already printed. Keeping the
+ * two apart is what lets the wording move without the parsing moving with it.
+ */
+const STAMP_SEPARATOR = ' · ';
 
 const MONTHS = [
   'Jan',
@@ -354,7 +364,14 @@ export function buildBook(war, author) {
   // Stamped so the item knows which war it documents: holding the book and
   // using it reopens that war's record, which makes a printed copy a shortcut
   // as well as a keepsake.
-  book.setDynamicProperty(WAR_STAMP, war.id);
+  //
+  // The stamp is a line of lore rather than a dynamic property. Signing turns
+  // the book into a written book, which stacks in Bedrock, and the engine
+  // refuses dynamic properties on anything stackable — `setDynamicProperty`
+  // threw and took the whole print with it. Lore has no such restriction, and
+  // it is honest about itself: the line is visible under the book's name, where
+  // a catalogue reference on a record belongs.
+  book.setLore([`${C.darkGray}${TEXT.book.recordStamp}${STAMP_SEPARATOR}${war.id}`]);
   return book;
 }
 
@@ -366,8 +383,21 @@ export function buildBook(war, author) {
  */
 export function warOfBook(item) {
   if (!item || item.typeId !== BOOK_ITEM) return undefined;
-  const warId = item.getDynamicProperty(WAR_STAMP);
-  return typeof warId === 'string' ? wars.getWar(warId) : undefined;
+
+  for (const line of item.getLore()) {
+    const at = line.lastIndexOf(STAMP_SEPARATOR);
+    if (at < 0) continue;
+    return wars.getWar(line.slice(at + STAMP_SEPARATOR.length).trim());
+  }
+
+  // Books printed before the stamp moved to lore carry a dynamic property
+  // instead. Reading one is harmless, so old copies keep working.
+  try {
+    const warId = item.getDynamicProperty(WAR_STAMP);
+    return typeof warId === 'string' ? wars.getWar(warId) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**

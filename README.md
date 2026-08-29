@@ -44,7 +44,7 @@ It was a compass for the first few versions, which was the wrong object: a compa
 
 A clan Leader gets one with `/clan:warmap`, puts it up in their base, and right-clicks it to declare war, answer declarations, check standings, or end a war. It is the only way into the war screen apart from `/clan:war` — the compass menu deliberately does not repeat it, so the map is a thing you go to rather than decoration.
 
-It mounts to surfaces like a painting rather than sitting there as a full cube: a flat panel you can walk through, placeable **on the floor or on any wall, but not on a ceiling**. On a wall it hangs facing you; on the floor it lies flat, like a chart spread on a table. It is drawn a pixel shy of a full block on each side, so it reads as an object resting on a surface rather than as the surface itself.
+It mounts to surfaces like a painting rather than sitting there as a full cube: a flat panel, placeable **on the floor or on any wall, but not on a ceiling** — and on the same partial surfaces an item frame accepts, such as the top of a slab or the flat side of a staircase. On a wall it hangs facing you; on the floor it lies flat, like a chart spread on a table. It is drawn a pixel shy of a full block on each side, so it reads as an object resting on a surface rather than as the surface itself.
 
 **It needs something to hang on.** Break the wall or floor behind a placed map and it comes down and drops itself, the way a painting or an item frame does.
 

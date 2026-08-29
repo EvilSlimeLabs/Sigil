@@ -206,7 +206,23 @@ before the structural work in F, not after.
    `replace_block_item`. Worth confirming the block still places normally from
    it, still drops that item when broken, and appears once rather than twice in
    the creative menu.
-7. **The War Map's collision box.** The map used to have none, which is what
+7. **The War Map's floor rotation.** The floor panel now carries
+   `minecraft:placement_direction`, so it turns to face the player who put it
+   down, with 180 degrees baked into each of the four rotations because the
+   panel as drawn sits half a turn out. Two things to look at: that the mapping
+   from `minecraft:cardinal_direction` to rotation is the right way round, and
+   that the compass rose reads sensibly now that it no longer always points
+   north — the alternative was a fixed 180-degree correction, which keeps north
+   but does not turn with the player.
+8. **The War Map's placement surfaces.** `minecraft:placement_filter` is gone,
+   so placement is policed only by `beforeOnPlayerPlace` (no ceilings) and the
+   support tick (nothing behind it). Worth confirming a map now hangs on a top
+   slab, the flat side of a staircase and a glass block, still refuses a
+   ceiling, and still drops when its support is broken. The support test is now
+   "not air and not liquid" rather than `isSolid`, which is deliberately
+   permissive — a map on a torch would survive, and that is preferred over a map
+   that cannot go on a slab.
+9. **The War Map's collision box.** The map used to have none, which is what
    let a painting on a neighbouring wall size itself as though the map's block
    were empty and grow straight over it. It now has one matching each facing's
    selection box, on the theory that a painting refuses space a solid block
@@ -215,7 +231,7 @@ before the structural work in F, not after.
    pressure plate's worth of step. Worth confirming the painting actually stops
    there, and worth deciding whether the lost walk-through matters — reverting
    is one line per permutation.
-8. **The War Map's X axis, now settled by observation.** Three separate things
+10. **The War Map's X axis, now settled by observation.** Three separate things
    were wrong on the east and west faces and each was found by placing a map
    rather than by reasoning about the trait:
 
@@ -233,7 +249,7 @@ before the structural work in F, not after.
    and this note exists so the next person does not "fix" the inconsistency and
    reintroduce all three.
 
-9. **The War Map's single-quad panels.** Each panel is one face: the other
+11. **The War Map's single-quad panels.** Each panel is one face: the other
    five are omitted from the model's `uv` map, which the documentation says
    removes them. It stays visible from both sides only because `alpha_test`
    does not cull back faces — which is what `alpha_test_single_sided` was
@@ -242,16 +258,16 @@ before the structural work in F, not after.
    face turns out to render anyway, or the back turns out to be culled, the
    fallback is a one-pixel box whose four narrow faces sample a transparent
    texel from inside one of the holes worn through the sheet.
-10. **`Player.chatNameSuffix`.** The chat components ordered past the player's
+12. **`Player.chatNameSuffix`.** The chat components ordered past the player's
    name are written to it. It sits beside `chatNamePrefix` in the same beta
    API, so it is very likely present wherever the prefix is, but only the
    prefix has ever been exercised.
-11. **The material colour codes.** `§g` and `§h`–`§v` are Bedrock-only additions
+13. **The material colour codes.** `§g` and `§h`–`§v` are Bedrock-only additions
    and are now offered in the colour dropdown. A code the running game does not
    know renders as literal text rather than colour, which would be visible
    immediately in the dropdown itself.
 
-12. **The outer chat brackets are the engine's, and stay that way.** Settled,
+14. **The outer chat brackets are the engine's, and stay that way.** Settled,
    and recorded so it is not re-litigated: the pack has never written an angle
    bracket, so the `<...>` around a chat author are Minecraft's. It composes
    the author as prefix + name + suffix and brackets the result, so everything
@@ -265,7 +281,7 @@ before the structural work in F, not after.
    set of brackets was built and then removed, because a setting whose whole
    effect is "now there are two" is not worth its place in a menu.
 
-13. **The curated symbol list.** Thirty-one glyphs, none of them verified
+15. **The curated symbol list.** Thirty-one glyphs, none of them verified
    against the running game's font. Any that render as a hollow box should be
    cut from `SYMBOL_CHOICES`; the ids are only referenced from `TEXT.symbol`,
    so removing one is a two-line change.

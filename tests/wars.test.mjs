@@ -280,7 +280,11 @@ checkEqual('it is signed', built.getComponent('minecraft:book').isSigned, true);
 checkEqual('with the short title', built.getComponent('minecraft:book').title, 'War #1');
 checkEqual('and the author', built.getComponent('minecraft:book').author, 'Steve');
 checkEqual('the item name is the long form', built.nameTag, 'War #1: Wolves vs Ravens');
-checkEqual('the war id is stamped on it', built.getDynamicProperty('clan:war'), record.id);
+// The stamp is a line of lore, not a dynamic property: signing makes the book
+// stackable and the engine refuses dynamic properties on stackable items.
+check('the war id is stamped in the lore', built.getLore().some((l) => l.includes(record.id)));
+check('and the stamp round-trips back to the war', warbook.warOfBook(built)?.id === record.id);
+check('a plain book is not mistaken for a record', warbook.warOfBook(new mock.ItemStack('minecraft:writable_book', 1)) === undefined);
 
 const given = warbook.givePlayerBook(leadA, record);
 check('the book reaches the player', given.ok);

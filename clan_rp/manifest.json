@@ -2,20 +2,20 @@
   "format_version": 2,
   "header": {
     "name": "Sigil Resources",
-    "description": "v1.7.1 — Textures for Sigil: the War Map block and the Clan Ledger.",
+    "description": "v1.8.0 — Textures for Sigil: the War Map block and the Clan Ledger.  §cMade with §d♥ §fby §aEvilSlimeLabs",
     "uuid": "37b15a1a-f323-4c80-a464-5bcb65fc77cb",
-    "version": [1, 7, 1],
+    "version": [1, 8, 0],
     "min_engine_version": [1, 26, 40]
   },
   "modules": [
     {
       "type": "resources",
       "uuid": "fd9ebdee-da03-40cc-90d5-48edd28adf97",
-      "version": [1, 7, 1]
+      "version": [1, 8, 0]
     }
   ],
   "metadata": {
-    "authors": ["Wedge Talon"],
+    "authors": ["EvilSlimeLabs"],
     "product_type": "addon"
   }
 }

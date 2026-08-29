@@ -82,6 +82,23 @@ export function ensure(player) {
 }
 
 /**
+ * Whether the player is already carrying a War Map.
+ *
+ * @param {import('@minecraft/server').Player} player
+ * @returns {boolean}
+ */
+export function hasWarMap(player) {
+  const inventory = player.getComponent('minecraft:inventory');
+  const container = inventory?.container;
+  if (!container) return false;
+
+  for (let slot = 0; slot < container.size; slot += 1) {
+    if (container.getItem(slot)?.typeId === WAR_MAP_BLOCK) return true;
+  }
+  return false;
+}
+
+/**
  * Puts a War Map in the player's inventory. It is a block, so what they receive
  * is its item form, ready to place.
  *

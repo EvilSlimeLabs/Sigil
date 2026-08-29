@@ -24,7 +24,7 @@ import { KEY, LIMITS, LEADER_ROLE, TIER, ROLE_COLOR_CHOICES } from './config.js'
 import * as settings from './settings.js';
 import { getString, setString, remove, getJson, setJson, setJsonGuarded, now } from './storage.js';
 import { normalizeKey, validateClanName, validateRoleName } from './format.js';
-import { identityChanged, clanDisbanded } from './hooks.js';
+import { identityChanged, clanDisbanded, clanUnderstrength } from './hooks.js';
 import { TEXT } from './text.js';
 
 /**
@@ -86,6 +86,46 @@ export function isOutpost(clan) {
 /**
  * Promotes an outpost to a full clan. Callers check eligibility and permission;
  * this only enforces that a full clan cannot be promoted twice.
+ *
+ * @param {string} clanId
+ * @returns {Result<Clan>}
+ */
+/**
+ * Returns a full clan to the outpost tier.
+ *
+ * Only ever reached through an approved review, never automatically: losing
+ * rank is the kind of thing a person should sign off on.
+ *
+ * @param {string} clanId
+ * @returns {Result<Clan>}
+ */
+export function demote(clanId) {
+  const clan = getClan(clanId);
+  if (!clan) return { ok: false, error: TEXT.clan.thatClanNoLongerExists };
+  if (isOutpost(clan)) return { ok: false, error: TEXT.clan.isAlreadyAnOutpost(clan.name) };
+
+  clan.tier = TIER.outpost;
+  saveClan(clan);
+  for (const id of Object.keys(clan.members)) identityChanged(id);
+  return { ok: true, value: clan };
+}
+
+/**
+ * Whether a full clan has fallen below the membership a promotion needs.
+ *
+ * Not enforced automatically: a clan that dips for an afternoon because two
+ * people are on holiday should not lose its rank to a background task. It puts
+ * the clan in front of a reviewer, and a person decides.
+ *
+ * @param {Clan} clan
+ * @returns {boolean}
+ */
+export function isUnderstrength(clan) {
+  return !isOutpost(clan) && memberCount(clan) < settings.promotionThreshold();
+}
+
+/**
+ * Promotes an outpost to a full clan.
  *
  * @param {string} clanId
  * @returns {Result<Clan>}
@@ -361,6 +401,9 @@ export function removeMember(clanId, playerId) {
   remove(KEY.playerClan + playerId);
 
   identityChanged(playerId);
+  // Losing a member is the only way a clan thins out, so this is the one place
+  // that has to notice. Nothing is demoted here — a reviewer decides.
+  if (isUnderstrength(clan)) clanUnderstrength(clan.id);
   return { ok: true, value: member.name };
 }
 

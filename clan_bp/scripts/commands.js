@@ -37,7 +37,7 @@ import * as requests from './requests.js';
 import * as announce from './announce.js';
 import * as players from './players.js';
 import * as display from './display.js';
-import { give as giveLedger, has as hasLedger, giveWarMap } from './ledger.js';
+import { give as giveLedger, has as hasLedger, giveWarMap, hasWarMap } from './ledger.js';
 import * as wars from './wars.js';
 import * as warbook from './warbook.js';
 import * as peaceful from './peaceful.js';
@@ -722,6 +722,14 @@ function handleWarMap(player) {
   if (!clan) return;
   if (!clans.isOwner(clan, player.id) && !staff.isAdmin(player)) {
     player.sendMessage(errorMsg(TEXT.cmd.onlyTheClanLeaderCan));
+    return;
+  }
+
+  // One per player, for the same reason the Ledger is: a second opens the same
+  // screen from the same wall, so asking for one you already have should say so
+  // rather than fill another inventory slot.
+  if (hasWarMap(player)) {
+    player.sendMessage(msg(TEXT.cmd.youAlreadyHaveAWarMap));
     return;
   }
 

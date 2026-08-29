@@ -1426,6 +1426,64 @@ export function staffClanBrowser(player, back) {
 }
 
 /**
+ * Puts a player into a clan without an invite.
+ *
+ * The invite flow exists so that nobody joins a clan without agreeing to it,
+ * and this deliberately steps around that — which is why it is admin-only and
+ * why the player is told what happened rather than left to notice.
+ *
+ * @param {Player} player
+ * @param {string} clanId
+ * @param {() => void} [back]
+ */
+function addMemberFlow(player, clanId, back) {
+  run(player, async () => {
+    const clan = clans.getClan(clanId);
+    if (!clan) {
+      player.sendMessage(errorMsg(TEXT.common.clanGone));
+      back?.();
+      return;
+    }
+    if (!staff.isAdmin(player)) {
+      player.sendMessage(errorMsg(TEXT.common.notAdminPurge));
+      back?.();
+      return;
+    }
+
+    const candidates = players.allKnown().filter((ref) => !clans.clanOf(ref.id));
+    if (candidates.length === 0) {
+      player.sendMessage(msg(TEXT.menu.everyKnownPlayerIsInAClan));
+      back?.();
+      return;
+    }
+
+    const target = await pickPlayer(player, {
+      back,
+      title: TEXT.menu.addAMemberTitle,
+      body: TEXT.menu.addAMemberBody(clan.name),
+      candidates,
+      describe: (ref) => `${onlineDot(ref)} ${C.white}${truncate(ref.name, 20)}`,
+    });
+    if (!target) return;
+
+    const added = clans.addMember(clan.id, target.id, target.name);
+    if (!added.ok) {
+      player.sendMessage(errorMsg(added.error));
+      back?.();
+      return;
+    }
+
+    player.sendMessage(successMsg(TEXT.menu.addedTo(target.name, clan.name)));
+    players.notify(target.id, msg(TEXT.menu.anAdminAddedYouTo(clan.name)));
+    announce.memberJoined(clan.name, target.name);
+    for (const id of Object.keys(added.value.members)) {
+      if (id !== target.id) players.notify(id, msg(TEXT.menu.joinedTheClan(target.name)));
+    }
+    back?.();
+  });
+}
+
+/**
  * @param {Player} player
  * @param {string} clanId
  * @param {() => void} [fromBrowser] where the browser this was opened from goes
@@ -1445,22 +1503,32 @@ function staffClanDetail(player, clanId, fromBrowser) {
         TEXT.menu.leaderMembers(players.displayName(clan.ownerId), clans.memberCount(clan)),
       )
       .button(TEXT.menu.membersRemoveSetRoleMake)
-      .button(TEXT.menu.warRecordsPrintAPast)
-      .button(TEXT.menu.disbandClan);
+      .button(TEXT.menu.warRecordsPrintAPast);
+
+    /** @type {Array<() => void>} */
+    const actions = [
+      () => memberBrowser(player, clanId, () => staffClanDetail(player, clanId, fromBrowser)),
+      () => clanWarHistory(player, clanId),
+    ];
+
+    // Adding straight to the roster skips the invite, which exists so that
+    // nobody is put in a clan without agreeing. An admin overriding that is the
+    // point of the button, so it is admin-only rather than a clan-management
+    // power a staff role can hold.
+    if (staff.isAdmin(player)) {
+      form.button(TEXT.menu.addAMemberAdmin);
+      actions.push(() => addMemberFlow(player, clanId, back));
+    }
+
+    form.button(TEXT.menu.disbandClan);
+    actions.push(() => disbandFlow(player, clanId, back));
 
     const response = await show(form, player);
     if (response.canceled || response.selection === undefined) {
       back();
       return;
     }
-
-    if (response.selection === 0) {
-      memberBrowser(player, clanId, () => staffClanDetail(player, clanId, fromBrowser));
-    } else if (response.selection === 1) {
-      clanWarHistory(player, clanId);
-    } else {
-      disbandFlow(player, clanId, back);
-    }
+    actions[response.selection]?.();
   });
 }
 
@@ -1811,9 +1879,11 @@ export function requestQueue(player, back) {
         const kind =
           request.kind === 'promote'
             ? TEXT.menu.queueRowPromote(request.requesterName)
-            : request.kind === 'rename'
-              ? TEXT.menu.queueRowRename(request.newName ?? '', request.requesterName)
-              : TEXT.menu.queueRowCreate(request.requesterName);
+            : request.kind === 'demote'
+              ? TEXT.menu.queueRowDemote
+              : request.kind === 'rename'
+                ? TEXT.menu.queueRowRename(request.newName ?? '', request.requesterName)
+                : TEXT.menu.queueRowCreate(request.requesterName);
         return TEXT.menu.queueRow(truncate(request.name, 20), kind);
       },
       match: (request) => request.name,

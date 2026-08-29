@@ -277,4 +277,45 @@ const custom = new mock.Player('g8', 'Custom');
 custom.playerPermissionLevel = mock.PlayerPermissionLevel.Custom;
 check('and a custom-permission player may too', staff.mayHoldRole(custom));
 
+// ── A clan that thins out is queued for review, not demoted ──────────────
+settings.update({ outpostPromotionMembers: 3 });
+// A leader with no clan of their own; `founder` already runs Wardens.
+const chief = new mock.Player('b0', 'Chief');
+playersMod.register(chief);
+const band = clans.createClan(chief.id, chief.name, 'Banders').value;
+for (const [i, id] of ['b1', 'b2'].entries()) {
+  const p = new mock.Player(id, 'Bander' + i);
+  playersMod.register(p);
+  clans.addMember(band.id, p.id, p.name);
+}
+const bandPromotion = requests.filePromotion({ id: chief.id, name: chief.name }, clans.getClan(band.id));
+requests.approve(bandPromotion.value.id);
+check('the clan is promoted', !clans.isOutpost(clans.getClan(band.id)));
+
+clans.removeMember(band.id, 'b1');
+const queued = requests.all().filter((r) => r.kind === 'demote' && r.clanId === band.id);
+checkEqual('losing a member queues one demotion review', queued.length, 1);
+check('and the clan is not demoted yet', !clans.isOutpost(clans.getClan(band.id)));
+
+clans.removeMember(band.id, 'b2');
+checkEqual(
+  'losing another does not queue a second',
+  requests.all().filter((r) => r.kind === 'demote' && r.clanId === band.id).length,
+  1,
+);
+
+// Recruiting back to strength makes the review refuse rather than demote.
+const rejoin = new mock.Player('b3', 'Bander3');
+playersMod.register(rejoin);
+clans.addMember(band.id, rejoin.id, rejoin.name);
+clans.addMember(band.id, 'b1', 'Bander0');
+check('a recovered clan is not demoted', !requests.approve(queued[0].id).ok);
+check('and stays a full clan', !clans.isOutpost(clans.getClan(band.id)));
+
+// Back below strength, the review goes through.
+clans.removeMember(band.id, 'b1');
+clans.removeMember(band.id, rejoin.id);
+check('an understrength clan is demoted on approval', requests.approve(queued[0].id).ok);
+check('and is an outpost again', clans.isOutpost(clans.getClan(band.id)));
+
 finish();

@@ -20,6 +20,7 @@ import { KEY, LIMITS } from './config.js';
 import { getJson, setJson, remove, now } from './storage.js';
 import { validateClanName, normalizeKey } from './format.js';
 import * as clans from './clans.js';
+import { onClanUnderstrength } from './hooks.js';
 import * as settings from './settings.js';
 import * as staff from './staff.js';
 import { onClanDisbanded } from './hooks.js';
@@ -28,7 +29,7 @@ import { TEXT } from './text.js';
 /**
  * @typedef {object} ClanRequest
  * @property {string} id
- * @property {string} kind           `create`, `promote` or `rename`
+ * @property {string} kind           `create`, `promote`, `demote` or `rename`
  * @property {string} [newName]      the proposed name, for `rename`
  * @property {string} [clanId]       the outpost being promoted, for `promote`
  * @property {string} name           the clan name, already sanitised
@@ -76,7 +77,51 @@ export function canApprovePromotions(player) {
  * @returns {boolean}
  */
 export function canApproveRequest(player, request) {
-  return request.kind === 'promote' ? canApprovePromotions(player) : canApprove(player);
+  // A demotion is the same judgement as a promotion pointed the other way, so
+  // it sits behind the same permission.
+  return request.kind === 'promote' || request.kind === 'demote'
+    ? canApprovePromotions(player)
+    : canApprove(player);
+}
+
+/**
+ * Files a demotion review for a clan that has fallen below the membership a
+ * promotion needs.
+ *
+ * Raised by the system rather than by a player, so there is no requester to
+ * name and no permission to check: it is a fact about the clan, noticed the
+ * moment its roster shrinks. Filing is idempotent — a clan that loses three
+ * members in a row is reviewed once, not three times.
+ *
+ * @param {import('./clans.js').Clan} clan
+ * @returns {Result<ClanRequest>}
+ */
+export function fileDemotion(clan) {
+  if (!clans.isUnderstrength(clan)) {
+    return { ok: false, error: TEXT.request.isNotUnderstrength(clan.name) };
+  }
+
+  const queue = all();
+  if (queue.some((request) => request.kind === 'demote' && request.clanId === clan.id)) {
+    return { ok: false, error: TEXT.request.alreadyAwaitingDemotionReview(clan.name) };
+  }
+  if (queue.length >= LIMITS.maxPendingRequests) {
+    return { ok: false, error: TEXT.request.theRequestQueueIsFull };
+  }
+
+  /** @type {ClanRequest} */
+  const request = {
+    id: newRequestId(),
+    kind: 'demote',
+    clanId: clan.id,
+    name: clan.name,
+    requesterId: '',
+    requesterName: TEXT.fragment.systemRaised,
+    at: now(),
+  };
+  queue.push(request);
+  save(queue);
+  return { ok: true, value: request };
 }
 
 /**
@@ -341,6 +386,27 @@ export function approve(requestId) {
     return { ok: true, value: { clan: clans.getClan(clan.id) ?? clan, request } };
   }
 
+  if (request.kind === 'demote') {
+    const clan = request.clanId === undefined ? undefined : clans.getClan(request.clanId);
+    if (!clan) {
+      save(all().filter((entry) => entry.id !== requestId));
+      return { ok: false, error: TEXT.request.noLongerExistsTheRequest(request.name) };
+    }
+
+    // Re-checked at approval, exactly as promotion is: a clan can recruit back
+    // up to strength while the review waits, and demoting it then would punish
+    // it for a gap it has already closed.
+    if (!clans.isUnderstrength(clan)) {
+      return { ok: false, error: TEXT.request.hasRecoveredItsNumbers(clan.name) };
+    }
+
+    const demoted = clans.demote(clan.id);
+    if (!demoted.ok) return demoted;
+
+    save(all().filter((entry) => entry.id !== requestId));
+    return { ok: true, value: { clan: demoted.value, request } };
+  }
+
   if (request.kind === 'promote') {
     const clan = request.clanId === undefined ? undefined : clans.getClan(request.clanId);
     if (!clan) {
@@ -419,4 +485,12 @@ export function dropForClan(clanId) {
 // A promotion request must not outlive the outpost it refers to.
 onClanDisbanded((clanId) => {
   dropForClan(clanId);
+});
+
+// A clan that drops below strength is put in front of a reviewer rather than
+// demoted on the spot. `fileDemotion` refuses a duplicate, so a clan that loses
+// several members in a row is reviewed once.
+onClanUnderstrength((clanId) => {
+  const clan = clans.getClan(clanId);
+  if (clan) fileDemotion(clan);
 });

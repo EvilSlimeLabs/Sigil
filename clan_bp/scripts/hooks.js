@@ -47,6 +47,38 @@ export function clanDisbanded(clanId) {
   }
 }
 
+/** @type {Array<(clanId: string) => void>} */
+const understrengthListeners = [];
+
+/**
+ * Registers a listener called when a full clan drops below the membership a
+ * promotion needs.
+ *
+ * `clans.js` notices it, because it owns the roster; `requests.js` acts on it,
+ * because it owns the review queue. Neither should import the other, so the
+ * fact travels through here like every other cross-domain signal.
+ *
+ * @param {(clanId: string) => void} listener
+ */
+export function onClanUnderstrength(listener) {
+  understrengthListeners.push(listener);
+}
+
+/**
+ * Announces that a clan has fallen below strength.
+ *
+ * @param {string} clanId
+ */
+export function clanUnderstrength(clanId) {
+  for (const listener of understrengthListeners) {
+    try {
+      listener(clanId);
+    } catch (err) {
+      console.warn(`[sigil] understrength listener failed for ${clanId}: ${err}`);
+    }
+  }
+}
+
 /**
  * Registers a listener called whenever a player's displayed identity changes.
  *

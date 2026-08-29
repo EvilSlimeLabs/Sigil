@@ -59,7 +59,19 @@
     "     backwards — `uv` starts at the far edge with a negative `uv_size`.",
     "",
     "Neither correction applies to north or south, and no attempt is made here to",
-    "explain why. The block is drawn to match what the game does with it."
+    "explain why. The block is drawn to match what the game does with it.",
+    "",
+    "── The floor panel turns with the player ─────────────────────────────",
+    "",
+    "The floor variant is the one place `minecraft:transformation` is still used.",
+    "It was removed from the walls because the rotation moved the selection box",
+    "away from the art; the floor box is [-8,0,-8] by [16,1,16], which is",
+    "unchanged by any turn about Y, so there is nothing for a rotation to put out",
+    "of place.",
+    "",
+    "The four rotations carry an extra 180 degrees on top of the usual mapping,",
+    "because the panel as drawn sits half a turn out: placed facing north with a",
+    "plain 0, the compass rose pointed south."
   ],
   "minecraft:geometry": [
     {

@@ -26,14 +26,19 @@
  * Both paths can describe one press, and {@link openWarScreen} de-duplicates,
  * so a game that delivers both does not open the screen twice.
  *
- * ── Why the ceiling is refused twice ───────────────────────────────────────
+ * ── Why placement is policed here rather than declared ─────────────────────
  *
- * The block declares `minecraft:placement_filter` with `allowed_faces` of
- * `["up", "side"]`, which should be the whole story — but maps were still going
- * up on ceilings in a live world. Rather than guess which of the placement
- * filter, the placement trait and the block-placer item is not honouring it,
- * `beforeOnPlayerPlace` refuses a downward face outright. The filter stays as
- * the declarative statement of intent; this is what actually enforces it.
+ * The block used to carry `minecraft:placement_filter` with `allowed_faces` of
+ * `["up", "side"]`. That component refuses any face it does not consider a full
+ * one, so a map could not be hung on a top slab or the flat side of a staircase
+ * — surfaces an item frame accepts without complaint. It has been removed, and
+ * both rules it was carrying are enforced below instead: `beforeOnPlayerPlace`
+ * refuses a downward face, and the tick below refuses to keep a map with
+ * nothing behind it.
+ *
+ * The filter had also been quietly doing the pop-off for us — it drops a block
+ * whose conditions stop holding. Losing that costs nothing, because the support
+ * check was already here and already the thing being relied on.
  *
  * ── Why the map checks its own support ─────────────────────────────────────
  *
@@ -118,21 +123,60 @@ export function forget(playerId) {
 /**
  * Whether the surface a placed map was mounted on is still there.
  *
- * Anything solid counts, which is the same rule paintings and item frames use:
- * the question is whether there is something to hang on, not what it is.
+ * `isSolid` is the test, which is the strictest thing the API offers and the
+ * nearest match to where a painting will hang: it excludes air, liquid, and the
+ * blocks the docs call out as not solid, such as fences and ladders.
+ *
+ * This briefly used "not air and not liquid" instead, on the theory that
+ * `isSolid` was what stopped maps going on slabs and stairs. That was almost
+ * certainly wrong — the culprit was `minecraft:placement_filter`, removed at the
+ * same time, and the symptom was placement being *refused* rather than a map
+ * popping off, which is what a failing support check looks like. Both were
+ * changed at once, so neither was proven; this puts the strict test back and
+ * leaves the filter out, which is the one variable actually worth isolating.
  *
  * @param {import('@minecraft/server').Block} block
  * @returns {boolean}
  */
 function isSupported(block) {
   const face = block.permutation.getState('minecraft:block_face');
-  const offset = SUPPORT_OFFSET[String(face ?? 'up')] ?? SUPPORT_OFFSET.up;
+  return hasSupportBehind(block, String(face ?? 'up'));
+}
 
-  const support = block.offset(offset);
-  // An unloaded neighbour is not an absent one. Leaving the map alone until the
-  // chunk is there is the difference between a slow check and a destructive one.
-  if (support === undefined) return true;
-  return support.isSolid;
+/**
+ * Whether the cell a map occupies has something behind it to hang on.
+ *
+ * Shared by the placement check and the tick so the two can never disagree
+ * about what counts — a map refused at placement for a reason the tick would
+ * have forgiven, or the reverse, is the kind of inconsistency nobody can debug
+ * from in-game.
+ *
+ * The direction comes either from the placement event's face or from the
+ * stored `minecraft:block_face`; both use the same six words, and
+ * {@link SUPPORT_OFFSET} maps every one of them to the block behind.
+ *
+ * Fails open. If the direction is unrecognised or the neighbour cannot be read,
+ * the map is allowed: a block that will not place is a far worse bug than one
+ * that places somewhere odd.
+ *
+ * @param {import('@minecraft/server').Block} block
+ * @param {string} facing
+ * @returns {boolean}
+ */
+function hasSupportBehind(block, facing) {
+  const offset = SUPPORT_OFFSET[facing.toLowerCase()];
+  if (!offset) return true;
+
+  try {
+    const support = block.offset(offset);
+    // An unloaded neighbour is not an absent one. Leaving the map alone until
+    // the chunk is there is the difference between a slow check and a
+    // destructive one.
+    if (support === undefined) return true;
+    return support.isSolid;
+  } catch {
+    return true;
+  }
 }
 
 /**
@@ -175,7 +219,14 @@ export function register(registry) {
         // one means the player is hanging the map from a ceiling. There is no
         // ceiling geometry and no support direction for it, and a map that
         // cannot be held up should not go up in the first place.
-        if (event.face === Direction.Down) event.cancel = true;
+        if (event.face === Direction.Down) {
+          event.cancel = true;
+          return;
+        }
+        // Refuse now rather than drop a second later. The tick below is still
+        // the safety net for support that disappears afterwards, but a map that
+        // could never have stayed should not appear at all.
+        if (!hasSupportBehind(event.block, String(event.face))) event.cancel = true;
       },
       onPlayerInteract: (event) => {
         const player = event.player;
