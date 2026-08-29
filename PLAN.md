@@ -150,7 +150,7 @@ Storage is **world dynamic properties**, sharded per record rather than kept in 
 | `clan:warpair:<idA>\|<idB>` | the live war id for that pair, or absent |
 | `clan:warpast:<idA>\|<idB>` | JSON `string[]` of every war id between the pair |
 | `clan:peace:<playerId>` | present when the player holds the Peaceful marker |
-| `clan:compass:<playerId>` | present once they have been issued a Clan Compass |
+| `clan:ledger:<playerId>` | present once they have been issued a Clan Ledger |
 | `clan:settings` | JSON settings record (below) |
 | `clan:requests` | JSON `ClanRequest[]` — pending clan-creation requests |
 | `clan:staff:roles` | JSON `StaffRole[]` |
@@ -552,9 +552,11 @@ The nametag draws its titles before the player's name and nothing after it, whic
 
 Typing `/clan:menu` on a controller means opening chat, navigating an on-screen keyboard and spelling out a namespaced command. That is the worst path through the add-on and it is the one a console clan leader would hit constantly, so the forms UI needs a physical entry point.
 
-**The Clan Compass.** A custom item, `clan:clan_compass`. Using it opens the main menu — one button press, no typing, and every screen from there on is a form that a controller navigates natively.
+**The Clan Ledger.** A custom item, `clan:clan_ledger`. Using it opens the main menu — one button press, no typing, and every screen from there on is a form that a controller navigates natively.
 
-- It is given automatically on a player's first join, and `/clan:compass` replaces a lost one — but only when the player is not already carrying one, since every copy opens the same menu and a second is only clutter.
+It shipped as a compass through 1.3.x and was renamed once the art settled. A compass points at something; this opens a record, and the menu behind it is membership, roles and standing — which is what a ledger holds. The identifier changed with the name, so a copy already in a world becomes an unknown item; the issue key was renamed alongside it (`clan:ledger:` rather than `clan:compass:`) so every player is handed the replacement exactly once instead of being told they already have one.
+
+- It is given automatically on a player's first join, and `/clan:ledger` replaces a lost one — but only when the player is not already carrying one, since every copy opens the same menu and a second is only clutter.
 - It is purely a key to the UI: no crafting, no durability, no gameplay effect.
 - Its icon is a custom texture from the resource pack.
 
@@ -582,7 +584,7 @@ It is a block rather than an item because the requirement asks for something pla
 
 ### Resource pack
 
-Adding custom art means a second pack, `clan_rp/`, which the behavior pack lists as a dependency so enabling one pulls in the other. It carries the War Map's model and texture, the Clan Compass icon, and the display-name strings. Both textures are generated from a committed script (`tools/make-textures.mjs`) rather than pasted in as binary, so the art is reviewable in a diff and regenerable. The map is **64×64** rather than the usual 16 so the torn edges, stains and markings have room to read; the compass and the map's inventory icon are **16×16**, the resolution every vanilla item uses.
+Adding custom art means a second pack, `clan_rp/`, which the behavior pack lists as a dependency so enabling one pulls in the other. It carries the War Map's model and texture, the Clan Ledger icon, and the display-name strings. Both textures are generated from a committed script (`tools/make-textures.mjs`) rather than pasted in as binary, so the art is reviewable in a diff and regenerable. The map is **64×64** rather than the usual 16 so the torn edges, stains and markings have room to read; the compass and the map's inventory icon are **16×16**, the resolution every vanilla item uses.
 
 The compass took three passes to stop looking foreign, and each pass removed a different tell. It began at 32×32 with a brass housing and a ring of evenly spaced tick marks: twice the detail of anything beside it in the hotbar, and a ring of ticks around a dial reads as a clock face rather than a compass. The second pass dropped to 16×16 and lost the ticks, but was still assembled from concentric `disc()` calls with the light and shade laid on as a diagonal sweep — and perfect circles and a mathematically straight shading seam are not how any vanilla item is drawn. The third is **a hand-authored pixel grid**, written out row by row in `tools/make-textures.mjs`: still art in code and still reviewable in a diff — more so, since the diff shows the picture — but with a chunky cut octagon for a silhouette and the shading stepped where a pixel artist would step it. The grid is checked on every run for a wrong row length or a character outside the palette, because a hand-written grid is the one thing here a typo could damage silently.
 
@@ -598,7 +600,7 @@ All namespaced under `clan:` (Bedrock requires a namespace on custom commands). 
 |---|---|---|---|
 | `/clan:menu` | — | anyone | Opens the main UI. The primary interface. |
 | `/clan:create` | `name: String`, `player: PlayerSelector?` | anyone not in a clan; the optional player is admin-only | Create a clan, or file a creation request when approval is required. Admins always create immediately, and may name another player to found the clan for. A clan founded this way still starts as an outpost and is promoted the same way. |
-| `/clan:compass` | — | anyone | Get a replacement Clan Compass, unless one is already held. |
+| `/clan:ledger` | — | anyone | Get a replacement Clan Ledger, unless one is already held. |
 | `/clan:warmap` | — | Leader of a full clan | Get a War Map block to place. |
 | `/clan:promote` | — | Leader of an outpost | Request promotion to a full clan. |
 | `/clan:war` | — | anyone in a clan | Open the war screen: declare, respond, view standings, end. |
@@ -640,7 +642,7 @@ All namespaced under `clan:` (Bedrock requires a namespace on custom commands). 
 | `system.beforeEvents.startup` | Register all custom commands and enums, and the War Map's block component. Nothing else — the world is not loaded yet. |
 | `world.afterEvents.playerSpawn` | On `initialSpawn`: refresh the name registry, reconcile the player's clan state, apply nametag and chat prefix, send a short welcome showing their identity, and notify them of any pending invites. |
 | `world.afterEvents.playerLeave` | Nothing persistent. Membership survives logout by design. |
-| `world.afterEvents.itemUse` | Opens the main menu when the used item is the Clan Compass. |
+| `world.afterEvents.itemUse` | Opens the main menu when the used item is the Clan Ledger. |
 | `world.afterEvents.playerInteractWithBlock` | Fallback path to the war screen, for a game that did not take the block component. De-duplicated against it. |
 | `world.afterEvents.entityDie` | Credits a war kill when a clan member kills an opposing member of a clan they are at war with. |
 | `system.runInterval` (every 20 s) | Re-evaluate op status for online players and re-apply display when it changed. Bedrock fires no event for op grant or revoke, so admin status is polled. Cost is one enum read per online player. |
@@ -682,7 +684,7 @@ c:\dev\clan\
     pack_icon.png
     models/blocks/war_map.geo.json  floor and wall panel geometry
     textures/blocks/clan_war_map.png
-    textures/items/clan_compass.png
+    textures/items/clan_ledger.png
     textures/terrain_texture.json
     textures/item_texture.json
     texts/en_US.lang
@@ -691,7 +693,7 @@ c:\dev\clan\
     manifest.json
     pack_icon.png
     items/
-      clan_compass.json         console-friendly key to the UI, BP-only
+      clan_ledger.json          console-friendly key to the UI, BP-only
       war_map.json              the War Map's item form: icon, stack size of 1
     blocks/
       war_map.json              surface-mounted war map, painting-like
@@ -710,7 +712,7 @@ c:\dev\clan\
       wars.js                   declarations, kill attribution, scoreboard
       warbook.js                renders a finished war into a signed book
       purge.js                  full removal of a player from the system
-      compass.js                the Clan Compass and War Map items
+      ledger.js                 the Clan Ledger and War Map items
       warmap.js                 the placed War Map: interaction and support
       clans.js                  clan domain logic: CRUD, membership, roles
       invites.js                pending invites: issue, list, accept, decline
@@ -768,7 +770,7 @@ The third generated UUID `37b15a1a-f323-4c80-a464-5bcb65fc77cb` is held in reser
 10. `display.js` — nametag, then the chat adapter with its three tiers.
 11. `commands.js` — every command from §6.
 12. `ui.js` — every screen, including the settings and request-review screens.
-13. `items/clan_compass.json` — the console entry point.
+13. `items/clan_ledger.json` — the console entry point.
 14. `main.js` — wiring and lifecycle.
 15. `warbook.js` — pagination and book generation, once the war record carries per-member counts.
 16. `tsc --noEmit` must pass clean, and every test suite must pass.

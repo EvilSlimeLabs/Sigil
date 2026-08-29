@@ -13,10 +13,18 @@
  * the behaviour that was reported.
  *
  * Registering `onPlayerInteract` is what tells the engine the block is worth
- * interacting with. The world event is kept as a fallback, because the block
- * component registry is the newer of the two surfaces and this add-on has to
- * survive it being unavailable; {@link openWarScreen} de-duplicates so a game
- * that delivers both does not open the screen twice.
+ * interacting with. Beside it, `world.beforeEvents.playerInteractWithBlock`
+ * cancels the interaction outright, which is a second thing entirely: the map
+ * has no collision box, so without it a painting, a torch or another block
+ * held at the time is placed straight through the map instead of the map being
+ * used. Cancelling makes the block swallow the press the way a chest does.
+ *
+ * Sneaking is exempt, because that is the vanilla way to say "build here, do
+ * not interact", and a wall carrying a war map should not become a dead spot
+ * where nothing can ever be placed.
+ *
+ * Both paths can describe one press, and {@link openWarScreen} de-duplicates,
+ * so a game that delivers both does not open the screen twice.
  *
  * ── Why the ceiling is refused twice ───────────────────────────────────────
  *
@@ -62,8 +70,14 @@ const SUPPORT_OFFSET = {
   down: { x: 0, y: 1, z: 0 },
   north: { x: 0, y: 0, z: 1 },
   south: { x: 0, y: 0, z: -1 },
-  west: { x: 1, y: 0, z: 0 },
-  east: { x: -1, y: 0, z: 0 },
+  // The X axis is the reverse of what the Z axis predicts. Maps hung on an
+  // east or west face came out a block off their wall, which is what looking
+  // for the support in the wrong direction produces. The geometry carries the
+  // same reversal and the two have to agree: a panel drawn against the right
+  // wall while this watched the opposite one would be torn down a second after
+  // it was placed.
+  west: { x: -1, y: 0, z: 0 },
+  east: { x: 1, y: 0, z: 0 },
 };
 
 /**
@@ -179,14 +193,26 @@ export function register(registry) {
 }
 
 /**
- * The fallback interaction path, for a game whose block component registry did
- * not take the registration above.
+ * Makes a placed map absorb the interaction rather than let it through.
+ *
+ * This is what stops a held item being placed over the map, and it doubles as
+ * the interaction path for a game whose block component registry did not take
+ * the registration above.
  */
-export function subscribeFallback() {
-  world.afterEvents.playerInteractWithBlock.subscribe((event) => {
+export function subscribeInteractionGuard() {
+  world.beforeEvents.playerInteractWithBlock.subscribe((event) => {
     if (event.block.typeId !== WAR_MAP_BLOCK) return;
-    // The event fires twice for a single press on some inputs.
+    // Sneak to build against the map instead of using it, as with any other
+    // interactive block.
+    if (event.player.isSneaking) return;
+
+    // Cancel whatever was in hand, including nothing: the map is the thing
+    // being used, not the surface behind it.
+    event.cancel = true;
+
+    // The press repeats while the button is held; only the first opens a form.
     if (!event.isFirstEvent) return;
-    openWarScreen(event.player);
+    const player = event.player;
+    system.run(() => openWarScreen(player));
   });
 }

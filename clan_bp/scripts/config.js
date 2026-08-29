@@ -121,8 +121,16 @@ export const KEY = {
   warPast: 'clan:warpast:',
   /** `clan:peace:<playerId>` -> present when the player is marked Peaceful */
   peaceful: 'clan:peace:',
-  /** `clan:compass:<playerId>` -> present once they have been given one */
-  compassIssued: 'clan:compass:',
+  /**
+   * `clan:ledger:<playerId>` -> present once they have been given one.
+   *
+   * Deliberately not the old `clan:compass:` key. The item's identifier changed
+   * when it stopped being a compass, so every copy already in a world became an
+   * unknown item — and a player whose old key was set would otherwise never be
+   * issued the replacement. A new key re-issues once to everybody and then
+   * behaves exactly as the old one did.
+   */
+  ledgerIssued: 'clan:ledger:',
   staffRoles: 'clan:staff:roles',
   /** `clan:staff:a:<playerId>` -> staff role id */
   staffAssign: 'clan:staff:a:',
@@ -173,7 +181,7 @@ export const BOOK_ITEM = 'minecraft:writable_book';
 export const WAR_STAMP = 'clan:war';
 
 /** The item that opens the clan menu, for players who would rather not type. */
-export const COMPASS_ITEM = 'clan:clan_compass';
+export const LEDGER_ITEM = 'clan:clan_ledger';
 
 /** The placeable block that opens the war screen. */
 export const WAR_MAP_BLOCK = 'clan:war_map';
@@ -235,6 +243,57 @@ export const DEFAULT_STAFF_ROLES = [
     showAs: 'name',
     builtin: true,
   },
+];
+
+/**
+ * Every symbol a system role, the Admin title or the Peaceful marker can be
+ * given, in dropdown order.
+ *
+ * These used to be typed in free-hand, which put the burden of knowing what the
+ * game's font can actually draw on whoever was filling in the form: a glyph
+ * outside it renders as a hollow box, and it does so on other people's screens
+ * rather than on the screen of the person who chose it. A curated list is the
+ * only way an admin can pick one and know what everyone else sees.
+ *
+ * Grouped by the kind of thing they say — rank, conflict, allegiance, shape —
+ * because a flat list of thirty glyphs is a wall to read through.
+ *
+ * As with the colours, only the id and the glyph are here; the name a player
+ * reads is in `TEXT.symbol`, because `config.js` cannot reach the catalogue
+ * without closing an import cycle.
+ */
+export const SYMBOL_CHOICES = [
+  { id: 'star', symbol: '★' },
+  { id: 'starOutline', symbol: '☆' },
+  { id: 'sparkle', symbol: '✦' },
+  { id: 'sparkleOutline', symbol: '✧' },
+  { id: 'burst', symbol: '✪' },
+  { id: 'asterisk', symbol: '✶' },
+  { id: 'crown', symbol: '♔' },
+  { id: 'swords', symbol: '⚔' },
+  { id: 'hammers', symbol: '⚒' },
+  { id: 'flag', symbol: '⚑' },
+  { id: 'flagOutline', symbol: '⚐' },
+  { id: 'skull', symbol: '☠' },
+  { id: 'peace', symbol: '☮' },
+  { id: 'balance', symbol: '☯' },
+  { id: 'node', symbol: '❖' },
+  { id: 'cross', symbol: '✚' },
+  { id: 'crossOrnate', symbol: '✜' },
+  { id: 'dagger', symbol: '†' },
+  { id: 'doubleDagger', symbol: '‡' },
+  { id: 'diamond', symbol: '◆' },
+  { id: 'diamondOutline', symbol: '◇' },
+  { id: 'circle', symbol: '●' },
+  { id: 'circleOutline', symbol: '○' },
+  { id: 'square', symbol: '■' },
+  { id: 'squareOutline', symbol: '□' },
+  { id: 'triangleUp', symbol: '▲' },
+  { id: 'triangleDown', symbol: '▼' },
+  { id: 'spade', symbol: '♠' },
+  { id: 'club', symbol: '♣' },
+  { id: 'heart', symbol: '♥' },
+  { id: 'suitDiamond', symbol: '♦' },
 ];
 
 /**

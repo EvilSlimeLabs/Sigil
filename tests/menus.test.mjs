@@ -102,45 +102,69 @@ function screen(shownForms, titleFragment) {
 const leaderMenu = buttonsOf((await open(() => ui.mainMenu(leader)))[0]);
 check('a leader sees their clan', leaderMenu.some((b) => b.includes('My Clan')));
 // Wars are reached through the War Map block and `/clan:war`, never from the
-// compass menu — repeating them here made the placed block look decorative.
+// clan menu — repeating them here made the placed block look decorative.
 check('a leader is offered no war entry', !leaderMenu.some((b) => b.includes('War Map')));
-check('a leader sees no staff tools', !leaderMenu.some((b) => b.includes('Manage Clans')));
+check('a leader sees no staff tools', !leaderMenu.some((b) => b.includes('Admin')));
 check('a leader sees no admin tools', !leaderMenu.some((b) => b.includes('Settings')));
 
 const strangerMenu = buttonsOf((await open(() => ui.mainMenu(stranger)))[0]);
 check('a clanless player is offered clan creation', strangerMenu.some((b) => b.includes('Create a Clan')));
 check('and no war map', !strangerMenu.some((b) => b.includes('War Map')));
 
+// ── Staff powers live behind exactly two doors ────────────────────────────
+// The front door carries what a player came for. Everything a staff role or an
+// admin can do is one level in, so an operator opening the menu to look at
+// their own clan is not met by eleven buttons about other people's.
 const modMenu = buttonsOf((await open(() => ui.mainMenu(mod)))[0]);
-check('a Mod sees clan management', modMenu.some((b) => b.includes('Manage Clans')));
-check('a Mod sees active wars', modMenu.some((b) => b.includes('Active Wars')));
-check('a Mod sees clan requests', modMenu.some((b) => b.includes('Clan Requests')));
-check('a Mod does not see staff roles', !modMenu.some((b) => b.includes('Staff Roles')));
-check('a Mod does not see settings', !modMenu.some((b) => b.includes('Settings')));
-check('a Mod cannot purge', !modMenu.some((b) => b.includes('Purge')));
+check('a Mod sees the admin door', modMenu.some((b) => b.includes('Admin')));
+check('a Mod does not see system settings', !modMenu.some((b) => b.includes('System Settings')));
+check('and no staff powers are on the front door', !modMenu.some((b) => b.includes('Manage Clans')));
+check('nor any wars', !modMenu.some((b) => b.includes('Active Wars')));
+check('nor the review queue', !modMenu.some((b) => b.includes('Clan Requests')));
 
-const adminMenu = buttonsOf((await open(() => ui.mainMenu(admin)))[0]);
-check('an admin sees staff roles', adminMenu.some((b) => b.includes('Staff Roles')));
-check('an admin sees settings', adminMenu.some((b) => b.includes('Settings')));
-check('an admin sees display settings', adminMenu.some((b) => b.includes('Display Settings')));
-check('an admin can purge', adminMenu.some((b) => b.includes('Purge')));
+const modAdmin = buttonsOf((await open(() => ui.adminMenu(mod)))[0]);
+check('a Mod reaches clan management through it', modAdmin.some((b) => b.includes('Manage Clans')));
+check('and active wars', modAdmin.some((b) => b.includes('Active Wars')));
+check('and the review queue', modAdmin.some((b) => b.includes('Clan Requests')));
+check('but cannot purge', !modAdmin.some((b) => b.includes('Purge')));
+check('and cannot found a clan for anyone', !modAdmin.some((b) => b.includes('Create a Clan for')));
+
+const adminFront = buttonsOf((await open(() => ui.mainMenu(admin)))[0]);
+check('an admin sees the admin door', adminFront.some((b) => b.includes('Admin')));
+check('an admin sees system settings', adminFront.some((b) => b.includes('System Settings')));
+check('the front door carries nothing else of theirs', adminFront.length <= 5);
+
+const adminTools = buttonsOf((await open(() => ui.adminMenu(admin)))[0]);
+check('an admin can purge', adminTools.some((b) => b.includes('Purge')));
 check(
   'an admin can found a clan for someone else',
-  adminMenu.some((b) => b.includes('Create a Clan for a Player')),
+  adminTools.some((b) => b.includes('Create a Clan for a Player')),
 );
-check('the settings screen is not called a clan setting', !adminMenu.some((b) => b === 'Clan Settings'));
+
+const sysSettings = buttonsOf((await open(() => ui.systemSettingsMenu(admin)))[0]);
+check('an admin sees staff roles', sysSettings.some((b) => b.includes('Staff Roles')));
+check('an admin sees settings', sysSettings.some((b) => b.includes('Settings')));
+check('an admin sees display settings', sysSettings.some((b) => b.includes('Display Settings')));
+check(
+  'the settings screen is not called a clan setting',
+  !sysSettings.some((b) => b === 'Clan Settings'),
+);
+
+// A Mod routed straight into the settings screen is still refused.
+const modSystemSettings = await open(() => ui.systemSettingsMenu(mod));
+checkEqual('a Mod cannot reach system settings directly', modSystemSettings.length, 0);
 
 // ── Back buttons exist only where there is somewhere to go back to ────────
 //
-// A screen opened from the compass menu is told its way home and shows a Back
+// A screen opened from the clan menu is told its way home and shows a Back
 // button; the same screen opened from a command or the War Map block is not,
 // because there is no parent to return to.
-const fromCompass = await open(() => {
+const fromLedger = await open(() => {
   ui2.__answers('My Clan');
   ui.mainMenu(leader);
 });
-const clanFromCompass = buttonsOf(screen(fromCompass, 'Wolves'));
-check('a screen reached from the compass offers Back', clanFromCompass.includes('Back'));
+const clanFromLedger = buttonsOf(screen(fromLedger, 'Wolves'));
+check('a screen reached from the ledger offers Back', clanFromLedger.includes('Back'));
 
 const direct = buttonsOf((await open(() => ui.myClanMenu(leader)))[0]);
 check('the same screen reached directly does not', !direct.includes('Back'));
@@ -376,7 +400,7 @@ check('a long list asks for a search term first', search !== undefined);
 const roster1 = listScreen(paged, 'Members');
 check('the list itself is shown', roster1 !== undefined);
 // Forty rows, then Next page, then Back: this screen was opened from the
-// compass menu, so it has somewhere to go back to.
+// clan menu, so it has somewhere to go back to.
 const navigation = (b) => b.includes('page') || b === 'Back';
 check('a long roster is capped at one page', buttonsOf(roster1).length <= 42);
 check('and offers a next page', buttonsOf(roster1).some((b) => b.includes('Next page')));

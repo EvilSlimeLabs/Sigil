@@ -9,7 +9,7 @@
 //
 //   clan_war_map.png       64x64  a torn, stained campaign map
 //   clan_war_map_item.png  16x16  the same map as an inventory icon
-//   clan_compass.png       16x16  an iron compass, brass-ringed, red north needle
+//   clan_ledger.png        16x16  the clan's ledger: crimson boards, gold S
 
 import { writePng, canvas, set, opaque, clear, shade, line, triangle, rng } from './pixels.mjs';
 
@@ -254,85 +254,66 @@ function makeWarMap() {
   return c;
 }
 
-// ── The compass ───────────────────────────────────────────────────────────
+// ── The Clan Ledger ───────────────────────────────────────────────────────
 //
-// Third attempt, and the first one drawn rather than computed.
+// This one was drawn by hand, in an editor, and transcribed here rather than
+// designed in code. Three attempts at a compass and several sheets of sigils
+// went past before the shape was settled, and the last step was the author
+// pushing pixels around directly — so what follows is that file, exactly, as a
+// grid.
 //
-// The first was 32x32 with a brass housing and a ring of evenly spaced tick
-// marks — twice the detail of anything beside it in the hotbar, and a ring of
-// ticks around a dial is a clock face, not a compass. The second dropped to
-// 16x16 and lost the ticks, but was still built from concentric `disc()` calls
-// with the light and shade laid on as a diagonal sweep. That is what was left
-// to fix: perfect circles and a mathematically straight shading seam are not
-// how any vanilla item is drawn, and no amount of recolouring hides it.
+// It is kept as a grid rather than committed as a PNG for the same reason
+// everything else here is: the art stays reviewable in a diff, and a change to
+// one pixel shows up as a change to one character. The generator is the source
+// of truth; `clan_ledger.png` is its output.
 //
-// So this one is a pixel grid, written out below. It is still art in code and
-// still reviewable in a diff — more so, since the diff shows the picture — but
-// the silhouette is a chunky hand-cut octagon rather than a rasterised circle,
-// and the shading steps where a pixel artist would step it.
-//
-// What makes it read as vanilla: a hard dark outline all round, three flat
-// tones of iron with no blending between them, light from the upper left, and
-// a palette of ten colours. What keeps it from reading as a clock: no ticks,
-// and a dark dial carrying a red-and-white needle rather than a pale face.
-//
-// What makes it special is the thin brass ring seated between the iron housing
-// and the dial. Vanilla mixes materials on a single item all the time, so the
-// accent reads as ornament rather than as a different game's art — and the
-// item already carries `minecraft:foil`, so the enchant glint is doing the
-// rest of that work.
+// What the drawing does, since none of it is obvious from the numbers: the
+// spine is a deep-crimson stripe down the left rather than wood, gold corner
+// pieces bracket the board top and bottom, and the paper edge sits along the
+// bottom in a muted tone instead of down the right in white — which is what
+// gives the front board a clean boundary on every side. The ribbon marker
+// drops out of the foot.
 
-const COMPASS_PALETTE = {
-  k: [44, 42, 48], // outline, and the darkest iron
-  d: [92, 95, 102], // iron, shadowed
-  m: [138, 142, 150], // iron, midtone
-  l: [186, 190, 198], // iron, lit
-  w: [222, 226, 232], // iron, highlight
-  g: [140, 102, 38], // brass, shadowed
-  G: [214, 168, 74], // brass, lit
-  n: [28, 32, 48], // dial
-  R: [190, 52, 48], // needle, north
-  W: [232, 232, 238], // needle, south
+const LEDGER_PALETTE = {
+  k: [38, 32, 30], // outline
+  d: [61, 14, 23], // spine, deepest crimson
+  c: [96, 22, 36], // board, shadowed
+  C: [142, 36, 52], // board
+  G: [240, 205, 122], // gold: corners, and the S
+  p: [206, 196, 170], // paper edge, muted — not white
 };
 
-/**
- * The compass, one character per pixel.
- *
- * The needle's waist falls between rows 7 and 8 and its shaft between columns 7
- * and 8, which is the exact centre of a 16x16 tile — an off-centre needle is
- * the first thing that looks wrong on a compass.
- */
-const COMPASS_PIXELS = [
-  '................',
-  '.....kkkkkk.....',
-  '...kkwwwwwwkk...',
-  '..kwwlllmmmmdk..',
-  '..kwlGGggggmdk..',
-  '.kwlGGnRRnggmdk.',
-  '.kwlGnnRRnngmdk.',
-  '.kwlGnRRRRngmdk.',
-  '.klmgnWWWWngmdk.',
-  '.klmgnnWWnngddk.',
-  '.kmmggnWWnggddk.',
-  '..kmmggggggddk..',
-  '..kmmddddddddk..',
-  '...kkddddddkk...',
-  '.....kkkkkk.....',
-  '................',
+const LEDGER_PIXELS = [
+  '.kdGGcccccccGGk.',
+  '.kdGCCCCCCCCCGk.',
+  '.kdcCCCCGGCCCck.',
+  '.kdcCCGGCGGCCck.',
+  '.kdcCCGGCCCCCck.',
+  '.kdcCCCGGGCCCck.',
+  '.kdcCCCCCGGCCck.',
+  '.kdcCCGGCGGCCck.',
+  '.kdcCCCCGGCCCck.',
+  '.kdGCCCCCCCCCGk.',
+  '.kdGGcccccccGGk.',
+  '.kdkkkkkkkkkkkk.',
+  '.kkpppppppppppk.',
+  '.kkpppppkCCkppk.',
+  '..kkkkkkkCCkkkk.',
+  '........kCCk....',
 ];
 
-function makeCompass() {
-  const S = COMPASS_PIXELS.length;
+function makeLedger() {
+  const S = LEDGER_PIXELS.length;
   const c = canvas(S, S);
 
-  COMPASS_PIXELS.forEach((row, y) => {
+  LEDGER_PIXELS.forEach((row, y) => {
     if (row.length !== S) {
-      throw new Error(`compass row ${y} is ${row.length} pixels, expected ${S}`);
+      throw new Error(`ledger row ${y} is ${row.length} pixels, expected ${S}`);
     }
     [...row].forEach((key, x) => {
       if (key === '.') return;
-      const rgb = COMPASS_PALETTE[key];
-      if (!rgb) throw new Error(`compass row ${y} uses "${key}", which is not in the palette`);
+      const rgb = LEDGER_PALETTE[key];
+      if (!rgb) throw new Error(`ledger row ${y} uses "${key}", which is not in the palette`);
       set(c, x, y, rgb);
     });
   });
@@ -435,4 +416,4 @@ console.log(
   writePng(`${out}/items/clan_war_map_item.png`, makeWarMapIcon()),
   'bytes',
 );
-console.log('clan_compass.png      ', writePng(`${out}/items/clan_compass.png`, makeCompass()), 'bytes');
+console.log('clan_ledger.png       ', writePng(`${out}/items/clan_ledger.png`, makeLedger()), 'bytes');

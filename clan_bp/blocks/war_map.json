@@ -8,7 +8,9 @@
       },
       "traits": {
         "minecraft:placement_position": {
-          "enabled_states": ["minecraft:block_face"]
+          "enabled_states": [
+            "minecraft:block_face"
+          ]
         }
       }
     },
@@ -24,11 +26,17 @@
       "minecraft:placement_filter": {
         "conditions": [
           {
-            "allowed_faces": ["up", "side"]
+            "allowed_faces": [
+              "up",
+              "side"
+            ]
           }
         ]
       },
-      "minecraft:collision_box": false,
+      "minecraft:collision_box": {
+        "origin": [-8, 0, -8],
+        "size": [16, 1, 16]
+      },
       "minecraft:selection_box": {
         "origin": [-8, 0, -8],
         "size": [16, 1, 16]
@@ -44,7 +52,9 @@
         "interval_range": [20, 20],
         "looping": true
       },
-      "minecraft:custom_components": ["clan:war_map"]
+      "minecraft:custom_components": [
+        "clan:war_map"
+      ]
     },
     "permutations": [
       {
@@ -52,6 +62,10 @@
         "components": {
           "minecraft:geometry": "geometry.clan_war_map_north",
           "minecraft:selection_box": {
+            "origin": [-8, 0, 7],
+            "size": [16, 16, 1]
+          },
+          "minecraft:collision_box": {
             "origin": [-8, 0, 7],
             "size": [16, 16, 1]
           }
@@ -64,6 +78,10 @@
           "minecraft:selection_box": {
             "origin": [-8, 0, -8],
             "size": [16, 16, 1]
+          },
+          "minecraft:collision_box": {
+            "origin": [-8, 0, -8],
+            "size": [16, 16, 1]
           }
         }
       },
@@ -72,7 +90,11 @@
         "components": {
           "minecraft:geometry": "geometry.clan_war_map_west",
           "minecraft:selection_box": {
-            "origin": [7, 0, -8],
+            "origin": [-8, 0, -8],
+            "size": [1, 16, 16]
+          },
+          "minecraft:collision_box": {
+            "origin": [-8, 0, -8],
             "size": [1, 16, 16]
           }
         }
@@ -82,7 +104,11 @@
         "components": {
           "minecraft:geometry": "geometry.clan_war_map_east",
           "minecraft:selection_box": {
-            "origin": [-8, 0, -8],
+            "origin": [7, 0, -8],
+            "size": [1, 16, 16]
+          },
+          "minecraft:collision_box": {
+            "origin": [7, 0, -8],
             "size": [1, 16, 16]
           }
         }

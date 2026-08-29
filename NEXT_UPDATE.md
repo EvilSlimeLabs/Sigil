@@ -206,7 +206,16 @@ before the structural work in F, not after.
    `replace_block_item`. Worth confirming the block still places normally from
    it, still drops that item when broken, and appears once rather than twice in
    the creative menu.
-7. **The War Map's per-facing geometry and its hitbox.** The wall panels were
+7. **The War Map's collision box.** The map used to have none, which is what
+   let a painting on a neighbouring wall size itself as though the map's block
+   were empty and grow straight over it. It now has one matching each facing's
+   selection box, on the theory that a painting refuses space a solid block
+   occupies. The cost is that the map is no longer something you walk through:
+   flush against a wall that is imperceptible, and on the floor it is a
+   pressure plate's worth of step. Worth confirming the painting actually stops
+   there, and worth deciding whether the lost walk-through matters — reverting
+   is one line per permutation.
+8. **The War Map's per-facing geometry and its hitbox.** The wall panels were
    one model turned by `minecraft:transformation`; the hitbox came out on the
    same side whichever face the map was hung on, so the transform is gone and
    each facing has its own model with its quad authored in place. Worth hanging
@@ -214,7 +223,7 @@ before the structural work in F, not after.
    faces outward on each. If a facing comes out mirrored, only that model's
    `uv` needs flipping, and no other facing is affected — which is the point of
    authoring them separately.
-8. **The War Map's single-quad panels.** Each panel is one face: the other
+9. **The War Map's single-quad panels.** Each panel is one face: the other
    five are omitted from the model's `uv` map, which the documentation says
    removes them. It stays visible from both sides only because `alpha_test`
    does not cull back faces — which is what `alpha_test_single_sided` was
@@ -223,14 +232,33 @@ before the structural work in F, not after.
    face turns out to render anyway, or the back turns out to be culled, the
    fallback is a one-pixel box whose four narrow faces sample a transparent
    texel from inside one of the holes worn through the sheet.
-9. **`Player.chatNameSuffix`.** The chat components ordered past the player's
+10. **`Player.chatNameSuffix`.** The chat components ordered past the player's
    name are written to it. It sits beside `chatNamePrefix` in the same beta
    API, so it is very likely present wherever the prefix is, but only the
    prefix has ever been exercised.
-10. **The material colour codes.** `§g` and `§h`–`§v` are Bedrock-only additions
+11. **The material colour codes.** `§g` and `§h`–`§v` are Bedrock-only additions
    and are now offered in the colour dropdown. A code the running game does not
    know renders as literal text rather than colour, which would be visible
    immediately in the dropdown itself.
+
+12. **The outer chat brackets are the engine's, and stay that way.** Settled,
+   and recorded so it is not re-litigated: the pack has never written an angle
+   bracket, so the `<...>` around a chat author are Minecraft's. It composes
+   the author as prefix + name + suffix and brackets the result, so everything
+   written here lands inside them and no property reaches them.
+
+   The only route to controlling them is cancelling each message and
+   re-broadcasting a replacement — the `chatSend` fallback, which discards
+   native chat behaviour and takes chat down with it if the handler ever
+   throws. That was weighed and declined: not worth risking a server's chat
+   over punctuation. An enclosure setting that could only add a second, inner
+   set of brackets was built and then removed, because a setting whose whole
+   effect is "now there are two" is not worth its place in a menu.
+
+13. **The curated symbol list.** Thirty-one glyphs, none of them verified
+   against the running game's font. Any that render as a hollow box should be
+   cut from `SYMBOL_CHOICES`; the ids are only referenced from `TEXT.symbol`,
+   so removing one is a two-line change.
 
 **Fix.** A single manual smoke pass in a test world, in the order above, with
 findings recorded back into `PLAN.md` under the limitations section.

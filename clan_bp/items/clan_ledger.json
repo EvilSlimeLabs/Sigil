@@ -2,15 +2,15 @@
   "format_version": "1.21.40",
   "minecraft:item": {
     "description": {
-      "identifier": "clan:clan_compass",
+      "identifier": "clan:clan_ledger",
       "menu_category": {
         "category": "items"
       }
     },
     "components": {
-      "minecraft:icon": "clan_compass",
+      "minecraft:icon": "clan_ledger",
       "minecraft:display_name": {
-        "value": "Clan Menu"
+        "value": "Clan Ledger"
       },
       "minecraft:max_stack_size": 1,
       "minecraft:hand_equipped": false,

@@ -7,7 +7,7 @@ tile.clan:war_map.name=War Map
 ## the tile name is what the placed block is called, the item name what
 ## the thing in your hand is called.
 item.clan:war_map.name=War Map
-item.clan:clan_compass.name=Clan Menu
+item.clan:clan_ledger.name=Clan Ledger
 
 pack.name=Sigil Resources
-pack.description=v1.2.1 — Textures for Sigil: the War Map block and the Clan Menu compass.
+pack.description=v1.4.0 — Textures for Sigil: the War Map block and the Clan Ledger.

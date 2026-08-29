@@ -60,6 +60,44 @@ export const TEXT = {
    * easy to leave scattered — and exactly why a translator needs them here.
    */
   /**
+   * Names for the symbol palette in `config.js`, keyed by its ids. A dropdown
+   * of bare glyphs is unreadable at a glance, so each is shown as the glyph
+   * beside its name.
+   */
+  symbol: {
+    star: `Star`,
+    starOutline: `Star Outline`,
+    sparkle: `Sparkle`,
+    sparkleOutline: `Sparkle Outline`,
+    burst: `Burst`,
+    asterisk: `Asterisk`,
+    crown: `Crown`,
+    swords: `Crossed Swords`,
+    hammers: `Hammer and Pick`,
+    flag: `Flag`,
+    flagOutline: `Flag Outline`,
+    skull: `Skull`,
+    peace: `Peace`,
+    balance: `Balance`,
+    node: `Node`,
+    cross: `Cross`,
+    crossOrnate: `Ornate Cross`,
+    dagger: `Dagger`,
+    doubleDagger: `Double Dagger`,
+    diamond: `Diamond`,
+    diamondOutline: `Diamond Outline`,
+    circle: `Circle`,
+    circleOutline: `Circle Outline`,
+    square: `Square`,
+    squareOutline: `Square Outline`,
+    triangleUp: `Triangle Up`,
+    triangleDown: `Triangle Down`,
+    spade: `Spade`,
+    club: `Club`,
+    heart: `Heart`,
+    suitDiamond: `Diamond Suit`,
+  },
+  /**
    * Names for the colour palette in `config.js`, keyed by its ids. Kept apart
    * from the codes because the code is a fact about Minecraft and the name is
    * a word in a language.
@@ -235,7 +273,7 @@ staffRole: {
   },
 join: {
     youHavePendingClanInvite: (/** @type {Value} */ a0, /** @type {Value} */ a1) => `${C.yellow}You have ${a0} pending clan invite(s): ${C.aqua}${a1}
-${C.gray}Respond with ${C.white}/clan:accept${C.gray}, or use your Clan Menu compass.`,
+${C.gray}Respond with ${C.white}/clan:accept${C.gray}, or use your Clan Ledger.`,
     clanRequestSAwaitingReview: (/** @type {Value} */ a0) => `${C.yellow}${a0} clan request(s) awaiting review.
 ${C.gray}Open ${C.white}/clan:requests${C.gray} to handle them.`,
     killed: (/** @type {Value} */ a0, /** @type {Value} */ a1, /** @type {Value} */ a2, /** @type {Value} */ a3, /** @type {Value} */ a4, /** @type {Value} */ a5, /** @type {Value} */ a6, /** @type {Value} */ a7) => `${C.red}${a0}${C.gray} killed ${C.red}${a1}${C.gray} — ${C.white}${a2} ${C.yellow}${a3}${C.darkGray} - ${C.yellow}${a4} ${C.white}${a5}${C.darkGray} (${a6}: ${a7})`,
@@ -246,7 +284,7 @@ cmd: {
     thisCommandCanOnlyBe: `This command can only be run by a player.`,
     yourRole: `Your role`,
     openTheClanMenu: `Open the clan menu`,
-    getAClanMenuCompass: `Get a Clan Menu compass`,
+    getAClanLedger: `Get a Clan Ledger`,
     getAWarMapBlock: `Get a War Map block to place`,
     openTheWarScreen: `Open the war screen`,
     listEveryActiveWar: `List every active war`,
@@ -305,8 +343,8 @@ ${C.gray}Print one with ${C.white}/clan:warbook${C.gray}.`,
     onlyAdminsCreateForOthers: `Only admins can create a clan on behalf of another player.`,
     createdTheOutpostFor: (/** @type {Value} */ a0, /** @type {Value} */ a1) => `Outpost "${a0}" created for ${a1}. They are its ${LEADER_ROLE}.`,
     anAdminCreatedTheOutpost: (/** @type {Value} */ a0) => `${C.green}An admin created the ${C.gray}outpost ${C.aqua}${a0}${C.green} for you. You are its ${LEADER_ROLE}.`,
-    hereIsYourClanMenu: `Here is your Clan Menu compass. Use it to open the menu.`,
-    youAlreadyHaveAClanMenu: `You already have a Clan Menu compass in your inventory.`,
+    hereIsYourClanMenu: `Here is your Clan Ledger. Use it to open the menu.`,
+    youAlreadyHaveAClanMenu: `You already have a Clan Ledger in your inventory.`,
     invitedTo: (/** @type {Value} */ a0, /** @type {Value} */ a1) => `Invited ${a0} to ${a1}.`,
     youHaveNoPendingClan: `${C.gray}You have no pending clan invites.`,
     pendingInvitesAcceptWithClan: (/** @type {Value} */ a0) => `${C.yellow}Pending invites:
@@ -556,6 +594,16 @@ ${C.gray}admin`,
 ${C.gray}admin`,
     displaySettingsAdmin: `${C.aqua}Display Settings
 ${C.gray}admin`,
+    adminTools: `${C.red}Admin
+${C.gray}clans, wars, requests, players`,
+    adminToolsWaiting: (/** @type {Value} */ a0) => `${C.red}Admin
+${C.gray}${a0} awaiting review`,
+    adminToolsTitle: `${C.red}Admin`,
+    adminToolsBody: `${C.gray}Acting on clans, wars and players. What you can change here happens now, to somebody in particular.`,
+    systemSettings: `${C.red}System Settings
+${C.gray}rules, display, staff roles`,
+    systemSettingsTitle: `${C.red}System Settings`,
+    systemSettingsBody: `${C.gray}Rules that apply to everybody, and how the add-on looks. Admins only.`,
     createForAPlayerAdmin: `${C.green}Create a Clan for a Player
 ${C.gray}admin`,
     createForATitle: `${C.green}Create a Clan for a Player`,
@@ -579,6 +627,7 @@ ${a0}${a1}`,
     clanColourTitle: `${C.aqua}Clan Colour`,
     clanColourBody: `${C.gray}The colour this clan's name is drawn in, on every member's nametag and in chat. One choice for the whole clan — members cannot set their own.`,
     clanColourPick: `${C.gray}Colour`,
+    symbolKeepCurrent: (/** @type {Value} */ a0) => `${a0}  (keep the current one)`,
     clanColourDefault: `(the add-on default)`,
     clanColourUsingDefault: `${C.gray}using the default`,
     clanColourUpdated: `Clan colour updated.`,
@@ -793,6 +842,10 @@ ${C.gray}clan, role, outpost`,
     showTheClanRole: `${C.white}Show the clan role`,
     rolePosition: `${C.gray}Role position`,
     clanBrackets: `${C.gray}Clan brackets`,
+    clanBracketColour: `${C.gray}Clan bracket colour`,
+    roleBracketColour: `${C.gray}Role bracket colour`,
+    chatClanBrackets: `${C.gray}Clan tag brackets`,
+    chatClanBracketColour: `${C.gray}Clan tag bracket colour`,
     roleBrackets: `${C.gray}Role brackets`,
     lowerNumbersAreDrawnFirst: `${C.darkGray}Lower numbers are drawn first, before the player name.`,
     systemTitleOrder: `${C.gray}System title order`,

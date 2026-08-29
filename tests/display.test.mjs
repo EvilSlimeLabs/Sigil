@@ -230,6 +230,38 @@ settings.update({ display: { chat: { nameOrder: 30 } } });
 checkEqual('and moving the name back restores it', plain(display.chatSuffixFor(member)), '');
 check('with the tag in front again', plain(display.chatPrefixFor(member)).includes('[Wolves]'));
 
+// ── Brackets carry their own colour, apart from what they enclose ─────────
+clans.setMemberRole(wolves.id, member.id, 'Officer');
+settings.update({
+  display: {
+    nametag: { showClanRole: true, clanBrackets: 'square', clanBracketColor: '§4', roleBracketColor: '§2' },
+    colors: { clan: '§b', role: '§e' },
+  },
+});
+display.refresh(member);
+check('the clan brackets take their own colour', member.nameTag.includes('§4['));
+check('and the clan name keeps its own', member.nameTag.includes('§bWolves'));
+check('the role brackets take theirs', member.nameTag.includes('§2['));
+check('and the role keeps its own', member.nameTag.includes('§eOfficer'));
+settings.update({
+  display: {
+    nametag: { showClanRole: false, clanBrackets: 'off', clanBracketColor: '§8', roleBracketColor: '§8' },
+    colors: { clan: '§b', role: '§7' },
+  },
+});
+clans.setMemberRole(wolves.id, member.id, '');
+
+// ── Nothing wraps the author block; those brackets are the game's ────────
+// The pack has never written an angle bracket. Bedrock composes the author as
+// prefix + name + suffix and brackets the result itself, so this asserts the
+// pack stays out of it rather than that some setting is off.
+check('the prefix opens no bracket of its own', !plain(display.chatPrefixFor(member)).includes('<'));
+check('and the suffix closes none', !plain(display.chatSuffixFor(member)).includes('>'));
+check(
+  'the identity line is tags, name, and nothing round it',
+  !/[<>]/.test(plain(display.identityLine(member))),
+);
+
 // ── Op changes are picked up by polling ───────────────────────────────────
 peaceful.set(admin.id, false);
 staff.assignRole(admin.id, undefined);

@@ -171,12 +171,12 @@ function nameTagClanLine(playerId) {
   // its tier, so an outpost reads as an outpost without spending a whole
   // component on saying so.
   const clanColor = clans.colorOf(clan, colors);
-  const clanPart = wrap(clan.name, nametag.clanBrackets, C.darkGray, clanColor);
+  const clanPart = wrap(clan.name, nametag.clanBrackets, nametag.clanBracketColor, clanColor);
 
   const role = clans.roleOf(clan, playerId);
   if (!nametag.showClanRole || role === '') return clanPart;
 
-  const rolePart = wrap(role, nametag.roleBrackets, C.darkGray, colors.role);
+  const rolePart = wrap(role, nametag.roleBrackets, nametag.roleBracketColor, colors.role);
   return nametag.rolePosition === 'after' ? `${clanPart} ${rolePart}` : `${rolePart} ${clanPart}`;
 }
 
@@ -211,9 +211,11 @@ function chatPartsFor(player) {
     const role = clans.roleOf(clan, player.id);
     const inner =
       chat.showClanRole && role !== ''
-        ? `${clanColor}${clan.name}${C.darkGray}|${colors.role}${role}`
+        ? `${clanColor}${clan.name}${chat.clanBracketColor}|${colors.role}${role}`
         : `${clanColor}${clan.name}`;
-    clanPart = `${C.darkGray}[${inner}${C.darkGray}]`;
+    // The inner text carries its own colours already, so it is wrapped with no
+    // text colour of its own rather than being repainted one flat shade.
+    clanPart = wrap(inner, chat.clanBrackets, chat.clanBracketColor, '');
   }
 
   const { before, after } = assembleAround(
@@ -228,6 +230,10 @@ function chatPartsFor(player) {
   return {
     // The trailing reset stops a tag's colour bleeding onto the name; the
     // leading space on the suffix separates it from the name it follows.
+    //
+    // Nothing wraps the pair. The angle brackets a player sees around the whole
+    // author are Minecraft's own, drawn around prefix + name + suffix after the
+    // fact, and there is no property that reaches them.
     before: before === '' ? '' : `${before} ${C.reset}`,
     after: after === '' ? '' : ` ${after}${C.reset}`,
   };

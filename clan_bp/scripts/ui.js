@@ -14,7 +14,7 @@
 
 import { world } from '@minecraft/server';
 import { action, showAction as show, modal } from './forms.js';
-import { C, LEADER_ROLE, LIMITS, ROLE_COLOR_CHOICES } from './config.js';
+import { C, LEADER_ROLE, LIMITS, ROLE_COLOR_CHOICES, SYMBOL_CHOICES } from './config.js';
 import { BRACKET_STYLES, bracketIndex } from './brackets.js';
 import {
   errorMsg,
@@ -286,13 +286,82 @@ export function mainMenu(player) {
 
     // No war entry here. The war screen belongs to the War Map a clan puts up
     // in its base — that block, and `/clan:war`, are the ways in. Repeating it
-    // in the compass menu made the map look like decoration.
+    // in the clan menu made the map look like decoration.
 
     form.button(TEXT.menu.browseClans);
     actions.push(() => browseClans(player, home));
 
-    if (requests.canApprove(player)) {
-      const queued = requests.all().length;
+    // Everything a staff role or an admin can reach sits behind these two, and
+    // nothing else. The front door used to grow a button per power, so an
+    // operator opening the menu to look at their own clan met eleven of them,
+    // most about other people's clans. An ordinary player still sees the same
+    // three or four entries they always did.
+    if (canReachAdminTools(player)) {
+      const queued = requests.reviewableBy(player).length;
+      form.button(
+        queued > 0 ? TEXT.menu.adminToolsWaiting(queued) : TEXT.menu.adminTools,
+      );
+      actions.push(() => adminMenu(player, home));
+    }
+
+    if (staff.canManageStaffRoles(player)) {
+      form.button(TEXT.menu.systemSettings);
+      actions.push(() => systemSettingsMenu(player, home));
+    }
+
+    const response = await show(form, player);
+    if (response.canceled || response.selection === undefined) return;
+    actions[response.selection]?.();
+  });
+}
+
+/**
+ * Whether a player has any reason at all to open the Admin screen.
+ *
+ * Asked before the button is drawn so that holding one narrow permission — a
+ * staff role that may only review promotions, say — opens a door to that one
+ * thing rather than to an empty room.
+ *
+ * @param {Player} player
+ * @returns {boolean}
+ */
+function canReachAdminTools(player) {
+  return (
+    staff.isAdmin(player) ||
+    staff.canManageAnyClan(player) ||
+    requests.canApprove(player) ||
+    requests.canApprovePromotions(player) ||
+    peaceful.canAssign(player)
+  );
+}
+
+/**
+ * Acting on the world: other people's clans, the wars between them, the review
+ * queue, and the two blunt instruments for a player who has to be dealt with.
+ *
+ * The split from {@link systemSettingsMenu} is between doing and configuring.
+ * Everything here is a thing that happens to a specific clan or player right
+ * now; everything there is a rule that then applies to everybody.
+ *
+ * @param {Player} player
+ * @param {() => void} [back]
+ */
+export function adminMenu(player, back) {
+  run(player, async () => {
+    if (!canReachAdminTools(player)) {
+      player.sendMessage(errorMsg(TEXT.common.notClanManager));
+      back?.();
+      return;
+    }
+
+    const form = action().title(TEXT.menu.adminToolsTitle).body(TEXT.menu.adminToolsBody);
+
+    /** @type {Array<() => void>} */
+    const actions = [];
+    const home = () => adminMenu(player, back);
+
+    if (requests.canApprove(player) || requests.canApprovePromotions(player)) {
+      const queued = requests.reviewableBy(player).length;
       form.button(
         queued > 0
           ? TEXT.menu.clanRequestsAwaitingReview(queued)
@@ -307,38 +376,82 @@ export function mainMenu(player) {
 
       const liveCount = wars.liveWars().length;
       form.button(
-        liveCount > 0
-          ? TEXT.menu.activeWarsInProgress(liveCount)
-          : TEXT.menu.activeWarsNone,
+        liveCount > 0 ? TEXT.menu.activeWarsInProgress(liveCount) : TEXT.menu.activeWarsNone,
       );
       actions.push(() => staffWarBrowser(player, home));
     }
 
-    if (staff.canManageStaffRoles(player)) {
-      form.button(TEXT.menu.staffRolesAdmin);
-      actions.push(() => staffRoleMenu(player, home));
+    if (peaceful.canAssign(player)) {
+      const config = settings.get().display.peaceful;
+      form.button(TEXT.menu.rosterPlayerS(config.color, config.name, peaceful.all().length));
+      actions.push(() => peacefulRoster(player));
+    }
 
-      form.button(TEXT.menu.settingsAdmin);
-      actions.push(() => settingsMenu(player));
-
-      form.button(TEXT.menu.displaySettingsAdmin);
-      actions.push(() => displaySettingsMenu(player, home));
-
+    if (staff.isAdmin(player)) {
       form.button(TEXT.menu.createForAPlayerAdmin);
       actions.push(() => createClanForPlayer(player, home));
 
       form.button(TEXT.menu.purgeAPlayerAdmin);
       actions.push(() => purgePicker(player, home));
+    }
 
-      const marked = peaceful.all().length;
-      form.button(
-        TEXT.menu.rosterPlayerS(settings.get().display.peaceful.color, settings.get().display.peaceful.name, marked),
-      );
-      actions.push(() => peacefulRoster(player));
+    if (back) {
+      form.button(TEXT.menu.back);
+      actions.push(back);
     }
 
     const response = await show(form, player);
-    if (response.canceled || response.selection === undefined) return;
+    if (response.canceled || response.selection === undefined) {
+      back?.();
+      return;
+    }
+    actions[response.selection]?.();
+  });
+}
+
+/**
+ * Configuring the add-on: the rules, the look, and who counts as staff.
+ *
+ * Admin-only in full, unlike {@link adminMenu}, which a staff role can reach a
+ * corner of. A clan-managing role that could edit the settings could switch on
+ * its own right to approve clans, so the whole screen stays with operators.
+ *
+ * @param {Player} player
+ * @param {() => void} [back]
+ */
+export function systemSettingsMenu(player, back) {
+  run(player, async () => {
+    if (!staff.canManageStaffRoles(player)) {
+      player.sendMessage(errorMsg(TEXT.common.notAdminSettings));
+      back?.();
+      return;
+    }
+
+    const home = () => systemSettingsMenu(player, back);
+    const form = action()
+      .title(TEXT.menu.systemSettingsTitle)
+      .body(TEXT.menu.systemSettingsBody)
+      .button(TEXT.menu.settingsAdmin)
+      .button(TEXT.menu.displaySettingsAdmin)
+      .button(TEXT.menu.staffRolesAdmin);
+
+    /** @type {Array<() => void>} */
+    const actions = [
+      () => settingsMenu(player),
+      () => displaySettingsMenu(player, home),
+      () => staffRoleMenu(player, home),
+    ];
+
+    if (back) {
+      form.button(TEXT.menu.back);
+      actions.push(back);
+    }
+
+    const response = await show(form, player);
+    if (response.canceled || response.selection === undefined) {
+      back?.();
+      return;
+    }
     actions[response.selection]?.();
   });
 }
@@ -1458,6 +1571,7 @@ function staffRoleDetail(player, roleId) {
 function staffRoleEditor(player, roleId) {
   run(player, async () => {
     const existing = roleId === undefined ? undefined : staff.roleById(roleId);
+    const symbols = symbolChoicesFor(existing?.symbol ?? '');
     const colorIndex = Math.max(
       0,
       ROLE_COLOR_CHOICES.findIndex((choice) => choice.code === existing?.color),
@@ -1467,7 +1581,9 @@ function staffRoleEditor(player, roleId) {
       existing ? `${C.aqua}Edit ${truncate(existing.name, 16)}` : TEXT.menu.createStaffRole,
     )
       .textField('name', TEXT.menu.name, 'Moderator', { defaultValue: existing?.name ?? '' })
-      .textField('symbol', TEXT.menu.chatTag, 'Mod', { defaultValue: existing?.symbol ?? '' })
+      .dropdown('symbol', TEXT.menu.chatTag, symbolOptions(symbols), {
+        defaultValueIndex: symbolIndex(symbols, existing?.symbol ?? ''),
+      })
       .dropdown(
         'color',
         TEXT.menu.colour,
@@ -1501,7 +1617,7 @@ function staffRoleEditor(player, roleId) {
       staffRoleMenu(player);
       return;
     }
-    const symbol = validateStaffSymbol(response.str('symbol'));
+    const symbol = validateStaffSymbol(symbolAt(symbols, response.num('symbol')));
     if (!symbol.ok) {
       player.sendMessage(errorMsg(symbol.error));
       staffRoleMenu(player);
@@ -3033,6 +3149,61 @@ function colorAt(value) {
   return ROLE_COLOR_CHOICES[Number(value ?? 0)]?.code ?? C.white;
 }
 
+/**
+ * The symbol palette, with the current value kept at the front when it is not
+ * one of the curated glyphs.
+ *
+ * Symbols used to be typed in free-hand, so a world upgrading into this list
+ * can be holding anything. Dropping such a value silently — which is what a
+ * plain lookup would do, since a missing entry reads as index 0 — would change
+ * a staff role's tag behind the admin's back the next time they opened the form
+ * to edit something else entirely.
+ *
+ * @param {string} current
+ * @returns {Array<{ id: string, symbol: string }>}
+ */
+function symbolChoicesFor(current) {
+  if (current === '' || SYMBOL_CHOICES.some((choice) => choice.symbol === current)) {
+    return SYMBOL_CHOICES;
+  }
+  return [{ id: 'current', symbol: current }, ...SYMBOL_CHOICES];
+}
+
+/**
+ * Dropdown labels: the glyph itself, then its name. A column of bare glyphs is
+ * unreadable at a glance, and the name is what makes the list scannable.
+ *
+ * @param {Array<{ id: string, symbol: string }>} choices
+ * @returns {string[]}
+ */
+function symbolOptions(choices) {
+  const names = /** @type {Record<string, string>} */ (TEXT.symbol);
+  return choices.map((choice) =>
+    choice.id === 'current'
+      ? TEXT.menu.symbolKeepCurrent(choice.symbol)
+      : `${choice.symbol}  ${names[choice.id] ?? choice.id}`,
+  );
+}
+
+/**
+ * @param {Array<{ id: string, symbol: string }>} choices
+ * @param {string} current
+ * @returns {number}
+ */
+function symbolIndex(choices, current) {
+  const index = choices.findIndex((choice) => choice.symbol === current);
+  return index < 0 ? 0 : index;
+}
+
+/**
+ * @param {Array<{ id: string, symbol: string }>} choices
+ * @param {unknown} value
+ * @returns {string}
+ */
+function symbolAt(choices, value) {
+  return choices[Number(value ?? 0)]?.symbol ?? choices[0].symbol;
+}
+
 /** How a title can be rendered, in dropdown order. */
 const SHOW_AS_OPTIONS = [
   { id: 'symbol', label: TEXT.menu.symbolOnly },
@@ -3129,12 +3300,18 @@ function nametagSettingsForm(player) {
         BRACKET_STYLES.map((style) => style.label),
         { defaultValueIndex: bracketIndex(nametag.clanBrackets) },
       )
+      .dropdown('clanBracketColor', TEXT.menu.clanBracketColour, colorOptions(), {
+        defaultValueIndex: colorIndex(nametag.clanBracketColor),
+      })
       .dropdown(
         'roleBrackets',
         TEXT.menu.roleBrackets,
         BRACKET_STYLES.map((style) => style.label),
         { defaultValueIndex: bracketIndex(nametag.roleBrackets) },
       )
+      .dropdown('roleBracketColor', TEXT.menu.roleBracketColour, colorOptions(), {
+        defaultValueIndex: colorIndex(nametag.roleBracketColor),
+      })
       .divider()
       .label(TEXT.menu.lowerNumbersAreDrawnFirst)
       .slider('systemOrder', TEXT.menu.systemTitleOrder, 0, 50, {
@@ -3159,7 +3336,9 @@ function nametagSettingsForm(player) {
           showClanRole: response.bool('showRole'),
           rolePosition: response.num('position') === 1 ? 'after' : 'before',
           clanBrackets: BRACKET_STYLES[response.num('clanBrackets')]?.id ?? 'off',
+          clanBracketColor: colorAt(response.num('clanBracketColor')),
           roleBrackets: BRACKET_STYLES[response.num('roleBrackets')]?.id ?? 'square',
+          roleBracketColor: colorAt(response.num('roleBracketColor')),
           systemOrder: response.num('systemOrder'),
           peacefulOrder: response.num('peacefulOrder', 10),
         },
@@ -3182,6 +3361,15 @@ function chatSettingsForm(player) {
     const response = await modal(TEXT.menu.chatDisplay)
       .toggle('showRole', TEXT.menu.showTheClanRoleIn, {
         defaultValue: chat.showClanRole,
+      })
+      .dropdown(
+        'clanBrackets',
+        TEXT.menu.chatClanBrackets,
+        BRACKET_STYLES.map((style) => style.label),
+        { defaultValueIndex: bracketIndex(chat.clanBrackets) },
+      )
+      .dropdown('clanBracketColor', TEXT.menu.chatClanBracketColour, colorOptions(), {
+        defaultValueIndex: colorIndex(chat.clanBracketColor),
       })
       .divider()
       .label(TEXT.menu.lowerNumbersAreDrawnFirst2)
@@ -3216,6 +3404,8 @@ function chatSettingsForm(player) {
       display: {
         chat: {
           showClanRole: response.bool('showRole'),
+          clanBrackets: BRACKET_STYLES[response.num('clanBrackets')]?.id ?? 'square',
+          clanBracketColor: colorAt(response.num('clanBracketColor')),
           systemOrder: response.num('systemOrder'),
           clanOrder: response.num('clanOrder', 10),
           peacefulOrder: response.num('peacefulOrder', 20),
@@ -3240,10 +3430,13 @@ function chatSettingsForm(player) {
 function adminTitleForm(player) {
   run(player, async () => {
     const { admin } = settings.get().display;
+    const symbols = symbolChoicesFor(admin.symbol);
 
     const response = await modal(TEXT.menu.adminTitle)
       .label(TEXT.menu.adminIsOperatorStatusAnd)
-      .textField('symbol', TEXT.menu.symbol, '✦', { defaultValue: admin.symbol })
+      .dropdown('symbol', TEXT.menu.symbol, symbolOptions(symbols), {
+        defaultValueIndex: symbolIndex(symbols, admin.symbol),
+      })
       .textField('name', TEXT.menu.name, 'Admin', { defaultValue: admin.name })
       .dropdown('color', TEXT.menu.colour, colorOptions(), {
         defaultValueIndex: colorIndex(admin.color),
@@ -3262,7 +3455,7 @@ function adminTitleForm(player) {
       return;
     }
 
-    const cleanSymbol = validateStaffSymbol(response.str('symbol'));
+    const cleanSymbol = validateStaffSymbol(symbolAt(symbols, response.num('symbol')));
     const cleanName = validateStaffRoleName(response.str('name'));
     if (!cleanSymbol.ok) {
       player.sendMessage(errorMsg(cleanSymbol.error));
@@ -3299,9 +3492,12 @@ function peacefulSettingsForm(player) {
   run(player, async () => {
     const config = settings.get();
     const { peaceful: peace } = config.display;
+    const symbols = symbolChoicesFor(peace.symbol);
 
     const response = await modal(TEXT.menu.peacefulRole)
-      .textField('symbol', TEXT.menu.symbol, '☮', { defaultValue: peace.symbol })
+      .dropdown('symbol', TEXT.menu.symbol, symbolOptions(symbols), {
+        defaultValueIndex: symbolIndex(symbols, peace.symbol),
+      })
       .textField('name', TEXT.menu.name, 'Peaceful', { defaultValue: peace.name })
       .dropdown('color', TEXT.menu.colour, colorOptions(), {
         defaultValueIndex: colorIndex(peace.color),
@@ -3335,7 +3531,7 @@ function peacefulSettingsForm(player) {
       return;
     }
 
-    const cleanSymbol = validateStaffSymbol(response.str('symbol'));
+    const cleanSymbol = validateStaffSymbol(symbolAt(symbols, response.num('symbol')));
     const cleanName = validateStaffRoleName(response.str('name'));
     if (!cleanSymbol.ok) {
       player.sendMessage(errorMsg(cleanSymbol.error));

@@ -20,7 +20,7 @@ import * as wars from './wars.js';
 import * as display from './display.js';
 import * as commands from './commands.js';
 import * as ui from './ui.js';
-import * as compass from './compass.js';
+import * as ledger from './ledger.js';
 import * as warbook from './warbook.js';
 import * as warmap from './warmap.js';
 import { TEXT } from './text.js';
@@ -62,7 +62,7 @@ function onJoin(player) {
   invites.prune(player.id);
   clans.refreshMemberName(player.id, player.name);
   display.refresh(player);
-  compass.ensure(player);
+  ledger.ensure(player);
 
   const clan = clans.clanOf(player.id);
   if (clan) {
@@ -135,12 +135,12 @@ world.afterEvents.playerLeave.subscribe((event) => {
   warmap.forget(event.playerId);
 });
 
-// The Clan Compass: one button press instead of typing a namespaced command,
+// The Clan Ledger: one button press instead of typing a namespaced command,
 // which is the difference between usable and unusable on a controller.
 world.afterEvents.itemUse.subscribe((event) => {
   const player = event.source;
 
-  if (compass.isCompass(event.itemStack)) {
+  if (ledger.isLedger(event.itemStack)) {
     system.run(() => ui.mainMenu(player));
     return;
   }
@@ -154,10 +154,10 @@ world.afterEvents.itemUse.subscribe((event) => {
 });
 
 // The War Map: a placed block a clan interacts with to run its wars. The block
-// component registered above is the path that works with an empty hand; this
-// is the fallback for a game that did not take it, and `warmap.js` throws away
-// whichever of the two arrives second.
-warmap.subscribeFallback();
+// component registered above makes it interactive; this cancels the press so a
+// held item is not placed through it, and opens the screen for a game that did
+// not take the component. `warmap.js` throws away whichever arrives second.
+warmap.subscribeInteractionGuard();
 
 // War kills. Only a credited player-versus-player kill between two clans that
 // are at war with each other counts — `wars.recordKill` is what decides, and it

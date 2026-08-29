@@ -31,11 +31,18 @@ import { getJson, setJson } from './storage.js';
  */
 
 /**
+ * Every bracket style carries its own colour. The brackets and the name inside
+ * them are separate marks doing separate jobs — the name identifies, the
+ * brackets only punctuate — and tying them to one colour meant an admin could
+ * not quieten the punctuation without also draining the name.
+ *
  * @typedef {object} NametagSettings
  * @property {boolean} showClanRole  default false, per the requirement
  * @property {string} rolePosition   "before" or "after" the clan name
  * @property {string} clanBrackets   a bracket style id
+ * @property {string} clanBracketColor
  * @property {string} roleBrackets   a bracket style id
+ * @property {string} roleBracketColor
  * @property {number} systemOrder    where the Admin/staff title sits
  * @property {number} peacefulOrder  where the Peaceful marker sits
  */
@@ -45,8 +52,19 @@ import { getJson, setJson } from './storage.js';
  * so `nameOrder` is a real position in the same sequence as the rest: anything
  * ordered below it is drawn before the name, anything above it after.
  *
+ * There is deliberately no setting for the brackets around the whole author.
+ * Bedrock composes the chat author as prefix + name + suffix and then draws its
+ * own angle brackets around the result, so everything written here lands inside
+ * them and no property removes them. The only way to control them is to cancel
+ * each message and re-broadcast a replacement — the fallback path below, which
+ * discards native chat behaviour and takes chat down with it if the handler
+ * ever throws. Not worth it for punctuation. The outer brackets are an engine
+ * limitation and are left alone.
+ *
  * @typedef {object} ChatSettings
  * @property {boolean} showClanRole  default true
+ * @property {string} clanBrackets     a bracket style id, around the clan tag
+ * @property {string} clanBracketColor
  * @property {number} systemOrder
  * @property {number} clanOrder
  * @property {number} peacefulOrder
@@ -142,12 +160,18 @@ const DEFAULTS = {
       showClanRole: false,
       rolePosition: 'before',
       clanBrackets: 'off',
+      clanBracketColor: C.darkGray,
       roleBrackets: 'square',
+      roleBracketColor: C.darkGray,
       systemOrder: 0,
       peacefulOrder: 10,
     },
     chat: {
       showClanRole: true,
+      // The clan tag was hard-coded in square brackets before this; the style
+      // and its colour are settings now, on the same footing as the nametag's.
+      clanBrackets: 'square',
+      clanBracketColor: C.darkGray,
       // The system title sits at the very start of the message; Peaceful comes
       // after every other title but still before the name. The name is last of
       // the four by default, so nothing is drawn after it until an admin moves

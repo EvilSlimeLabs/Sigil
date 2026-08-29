@@ -1,6 +1,6 @@
 {
   "name": "clan-system-addon",
-  "version": "1.2.1",
+  "version": "1.4.0",
   "private": true,
   "description": "Minecraft Bedrock behavior pack providing a clan system with clan roles, staff roles, nametag and chat identity.",
   "type": "module",

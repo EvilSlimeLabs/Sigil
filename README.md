@@ -6,7 +6,7 @@ A Minecraft Bedrock add-on that gives players clans — with outposts that earn 
 
 ## Installing
 
-There are two packs. The behavior pack holds the logic; the resource pack holds the War Map's model and texture and the Clan Menu icon. The behavior pack declares the resource pack as a dependency, so enabling one should pull in the other.
+There are two packs. The behavior pack holds the logic; the resource pack holds the War Map's model and texture and the Clan Ledger icon. The behavior pack declares the resource pack as a dependency, so enabling one should pull in the other.
 
 1. Open `Sigil-<version>.mcaddon` with Minecraft, which installs both packs at once. On a server instead, unzip `Sigil-BP-<version>.mcpack` into the world's `behavior_packs/` folder and `Sigil-RP-<version>.mcpack` into `resource_packs/`.
 2. Enable **Sigil** in the world's Behavior Packs and **Sigil Resources** in its Resource Packs. Both packs put their version at the front of the description, so the pack list tells you which one is installed.
@@ -32,9 +32,13 @@ Everything else — clans, wars, invites, roles, approvals, settings, nametags a
 
 ## Using it
 
-### The Clan Menu compass
+### The Clan Ledger
 
-Every player is given a **Clan Menu** compass on their first join. Using it opens the menu — the whole system is reachable from there without typing anything, which is the point on a controller. Lost it? `/clan:compass`. One is the limit: the command checks your inventory first and tells you so rather than handing out a second.
+The menu opens on what the player came for — their clan, their invites, the clan list. Everything a staff role or an admin can do sits behind two further buttons, **Admin** and **System Settings**: acting on somebody in particular versus setting a rule that applies to everybody. An ordinary player sees neither.
+
+Every player is given a **Clan Ledger** on their first join. Using it opens the menu — the whole system is reachable from there without typing anything, which is the point on a controller. Lost it? `/clan:ledger`. One is the limit: the command checks your inventory first and tells you so rather than handing out a second.
+
+It was a compass for the first few versions, which was the wrong object: a compass points at something, and this opens a record. The ledger is the book a clan keeps, and what is behind it — membership, roles, standing — is what a ledger holds.
 
 ### The War Map
 
@@ -43,6 +47,8 @@ A clan Leader gets one with `/clan:warmap`, puts it up in their base, and right-
 It mounts to surfaces like a painting rather than sitting there as a full cube: a flat panel you can walk through, placeable **on the floor or on any wall, but not on a ceiling**. On a wall it hangs facing you; on the floor it lies flat, like a chart spread on a table. It is drawn a pixel shy of a full block on each side, so it reads as an object resting on a surface rather than as the surface itself.
 
 **It needs something to hang on.** Break the wall or floor behind a placed map and it comes down and drops itself, the way a painting or an item frame does.
+
+Right-clicking a placed map opens the war screen and nothing else — sneak if you want to build against it, as with any other interactive block.
 
 A War Map does not stack: one per slot, like a painting you are carrying rather than a stack of paper.
 
@@ -70,7 +76,7 @@ A War Map does not stack: one per slot, like a painting you are carrying rather 
 | `/clan:disband` | Delete your clan |
 | `/clan:info [player]` | Show clan details |
 | `/clan:list` | List every clan |
-| `/clan:compass` | Get a replacement menu compass — refused if you already have one |
+| `/clan:ledger` | Get a replacement Clan Ledger — refused if you already have one |
 
 `/clan:accept` and `/clan:deny` take no argument when only one invite is pending.
 
@@ -177,17 +183,19 @@ A correction made with `/clan:warkills` can **name a player**, in which case it 
 - Show or hide the clan role — default **hidden**
 - Role **before** or **after** the clan — default before
 - Bracket style for the clan (default **none**) and for the role (default **square**), from none, square, angled, curly, bar, star and dash
+- A colour per bracket style, set apart from the text inside it — brackets punctuate, names identify, and one colour for both meant you could not quieten the punctuation without draining the name
 - Where the system title and Peaceful marker sit relative to the name
 
 **Chat**
 
 - Show or hide the clan role — default **shown**
+- The clan tag's bracket style and its colour
 - Where the system title, clan tag and Peaceful marker sit
 - Where the **player's own name** sits. The name has an order like everything else, so a tag numbered above it is drawn **after** the name rather than before it. By default the name is last and everything precedes it.
 
 **Titles**
 
-- The Admin title's symbol, name and colour, and whether it shows as symbol, name, or both
+- The Admin title's symbol, name and colour, and whether it shows as symbol, name, or both. **Symbols are chosen from a curated list** rather than typed: a glyph outside the game's font renders as a hollow box, and it does so on everyone else's screen rather than on the screen of whoever picked it. A symbol an older version stored is kept at the top of the list so upgrading never silently changes a tag.
 - The same for the Peaceful role, plus whether it appears in the nametag, chat, both or neither
 - Each staff role carries its own symbol, name, colour and show-as
 
@@ -248,7 +256,7 @@ npm test
 
 They cover the clan lifecycle and permissions, the menu layer's permission gates, the exact composition of the nametag and chat prefix, the settings, approval and purge behaviour, and outposts, wars and kill attribution.
 
-All three textures are generated by a script rather than committed as opaque binaries, so the art can be reviewed in a diff and regenerated. The map is 64×64 so its torn edges and markings have room to read; the compass and the map's inventory icon are 16×16, the resolution every vanilla item uses, because an item at twice the detail of everything beside it in the hotbar reads as a foreign object. The compass goes further and is written out as a pixel grid rather than drawn from shapes, since perfect circles and a straight shading seam are the two things that gave it away as machine-made. The generator is seeded, so output is identical on every run:
+All three textures are generated by a script rather than committed as opaque binaries, so the art can be reviewed in a diff and regenerated. The map is 64×64 so its torn edges and markings have room to read; the Clan Ledger and the map's inventory icon are 16×16, the resolution every vanilla item uses, because an item at twice the detail of everything beside it in the hotbar reads as a foreign object. The ledger is a transcription rather than a drawing: it was pushed around by hand in an image editor and the finished pixels were copied into the generator as a grid, so the art stays reviewable in a diff and a one-pixel change shows up as a one-character change. The generator is seeded, so output is identical on every run:
 
 ```bash
 node tools/make-textures.mjs

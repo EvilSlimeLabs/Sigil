@@ -37,7 +37,7 @@ import * as requests from './requests.js';
 import * as announce from './announce.js';
 import * as players from './players.js';
 import * as display from './display.js';
-import { give as giveCompass, has as hasCompass, giveWarMap } from './compass.js';
+import { give as giveLedger, has as hasLedger, giveWarMap } from './ledger.js';
 import * as wars from './wars.js';
 import * as warbook from './warbook.js';
 import * as peaceful from './peaceful.js';
@@ -256,16 +256,16 @@ function handlePurge(player, targetArg) {
 /**
  * @param {Player} player
  */
-function handleCompass(player) {
-  // One compass per player. The menu it opens is the same menu whichever copy
+function handleLedger(player) {
+  // One ledger per player. The menu it opens is the same menu whichever copy
   // is held, so a second is only ever clutter — and asking for one is how a
   // player who has misplaced theirs in a full inventory ends up with two.
-  if (hasCompass(player)) {
+  if (hasLedger(player)) {
     player.sendMessage(msg(TEXT.cmd.youAlreadyHaveAClanMenu));
     return;
   }
 
-  if (giveCompass(player)) {
+  if (giveLedger(player)) {
     player.sendMessage(successMsg(TEXT.cmd.hereIsYourClanMenu));
   } else {
     player.sendMessage(errorMsg(TEXT.common.inventoryFull));
@@ -972,7 +972,7 @@ export function register(registry) {
 
   add('menu', TEXT.cmd.openTheClanMenu, (player) => ui.mainMenu(player));
 
-  add('compass', TEXT.cmd.getAClanMenuCompass, handleCompass);
+  add('ledger', TEXT.cmd.getAClanLedger, handleLedger);
 
   add('warmap', TEXT.cmd.getAWarMapBlock, handleWarMap);
 

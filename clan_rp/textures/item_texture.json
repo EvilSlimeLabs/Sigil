@@ -2,8 +2,8 @@
   "resource_pack_name": "clan_system",
   "texture_name": "atlas.items",
   "texture_data": {
-    "clan_compass": {
-      "textures": "textures/items/clan_compass"
+    "clan_ledger": {
+      "textures": "textures/items/clan_ledger"
     },
     "clan_war_map_item": {
       "textures": "textures/items/clan_war_map_item"
