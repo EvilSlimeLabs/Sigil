@@ -4,6 +4,9 @@
   "texture_data": {
     "clan_compass": {
       "textures": "textures/items/clan_compass"
+    },
+    "clan_war_map_item": {
+      "textures": "textures/items/clan_war_map_item"
     }
   }
 }

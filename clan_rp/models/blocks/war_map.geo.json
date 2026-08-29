@@ -1,23 +1,51 @@
 {
   "format_version": "1.16.0",
   "_comment": [
-    "Two flat panels, not two boxes.",
+    "One quad each, and one model per facing. Five models, no rotation.",
     "",
-    "The map used to be a one-pixel-thick cube, which meant its four narrow",
-    "sides had to be given a UV of their own. There is nothing on a torn",
-    "parchment texture that reads as the *edge* of a sheet, so whatever slice",
-    "they were given looked like a mistake from every angle but head-on.",
+    "── Why one quad ──────────────────────────────────────────────────────",
     "",
-    "A cube with a zero-length axis renders as a single quad instead: the map",
-    "is a sheet with no thickness, drawn from both sides, and there are no side",
-    "faces left to mis-texture. Each panel is 15 pixels rather than 16, so it",
-    "sits a hair inside the block it occupies and reads as an object placed on",
-    "a surface rather than as the surface itself, and each is offset a fraction",
-    "off that surface so the two planes cannot z-fight.",
+    "A one-pixel box has four narrow side faces, and a side face is a full",
+    "rectangle while the sheet drawn on the large faces has a torn silhouette.",
+    "Anything those faces draw — a slice of the map, a plain parchment edge —",
+    "stands out past every tear as a solid rectangular rim.",
     "",
-    "The four faces on the collapsed axis have zero area and cannot render, but",
-    "they are still given a UV so the model is complete rather than relying on a",
-    "partial per-face map being accepted."
+    "Collapsing the box to a zero-length axis removes those faces but leaves",
+    "the up and down quads on exactly the same plane. The renderer has no way",
+    "to order two coplanar faces, and because Bedrock shades a downward face",
+    "much darker than an upward one, the fight between them reads as the block",
+    "flickering black.",
+    "",
+    "Omitting a face from the `uv` map removes it, so each panel here is a",
+    "single quad: nothing coplanar with it, no edges, and the torn outline is",
+    "the only silhouette there is. It stays visible from both sides because",
+    "`alpha_test` does not cull back faces — that is what the later",
+    "`alpha_test_single_sided` method was added to do, and the block",
+    "deliberately does not ask for it.",
+    "",
+    "── Why five models instead of one and a rotation ─────────────────────",
+    "",
+    "The wall panels used to be a single model turned by",
+    "`minecraft:transformation`, with the selection box set separately per",
+    "permutation on the assumption that the transform moved the art but not",
+    "the box. In a live world the hitbox came out on the same side whichever",
+    "face the map was hung on, which is what a transform being applied to the",
+    "box as well would look like.",
+    "",
+    "Rather than work out which half of that assumption was wrong, the",
+    "transform is gone: each facing has its quad authored where it belongs, so",
+    "the art and the selection box are written in the same coordinate space by",
+    "hand and nothing is applied to one and not the other.",
+    "",
+    "Each quad sits a quarter-pixel off the surface it is mounted on, so it",
+    "cannot z-fight with the face of the block behind it, and is 15 pixels",
+    "rather than 16 so it reads as an object resting on a surface rather than",
+    "as the surface itself.",
+    "",
+    "The facing names follow `minecraft:block_face`, which records the face of",
+    "the block that was built against — so the support is always on the far",
+    "side of the map from the viewer, and `..._north` is the panel you see",
+    "when looking north-to-south at a wall to its south."
   ],
   "minecraft:geometry": [
     {
@@ -35,16 +63,9 @@
           "pivot": [0, 0, 0],
           "cubes": [
             {
-              "origin": [-7.5, 0.1, -7.5],
+              "origin": [-7.5, 0.25, -7.5],
               "size": [15, 0, 15],
-              "uv": {
-                "up": { "uv": [0, 0], "uv_size": [64, 64] },
-                "down": { "uv": [0, 64], "uv_size": [64, -64] },
-                "north": { "uv": [0, 0], "uv_size": [1, 1] },
-                "south": { "uv": [0, 0], "uv_size": [1, 1] },
-                "east": { "uv": [0, 0], "uv_size": [1, 1] },
-                "west": { "uv": [0, 0], "uv_size": [1, 1] }
-              }
+              "uv": { "up": { "uv": [0, 0], "uv_size": [64, 64] } }
             }
           ]
         }
@@ -52,7 +73,7 @@
     },
     {
       "description": {
-        "identifier": "geometry.clan_war_map_wall",
+        "identifier": "geometry.clan_war_map_north",
         "texture_width": 64,
         "texture_height": 64,
         "visible_bounds_width": 2,
@@ -65,16 +86,78 @@
           "pivot": [0, 0, 0],
           "cubes": [
             {
-              "origin": [-7.5, 0.5, 7.9],
+              "origin": [-7.5, 0.5, 7.75],
               "size": [15, 15, 0],
-              "uv": {
-                "north": { "uv": [0, 0], "uv_size": [64, 64] },
-                "south": { "uv": [64, 0], "uv_size": [-64, 64] },
-                "up": { "uv": [0, 0], "uv_size": [1, 1] },
-                "down": { "uv": [0, 0], "uv_size": [1, 1] },
-                "east": { "uv": [0, 0], "uv_size": [1, 1] },
-                "west": { "uv": [0, 0], "uv_size": [1, 1] }
-              }
+              "uv": { "north": { "uv": [0, 0], "uv_size": [64, 64] } }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "description": {
+        "identifier": "geometry.clan_war_map_south",
+        "texture_width": 64,
+        "texture_height": 64,
+        "visible_bounds_width": 2,
+        "visible_bounds_height": 2,
+        "visible_bounds_offset": [0, 0.5, 0]
+      },
+      "bones": [
+        {
+          "name": "map",
+          "pivot": [0, 0, 0],
+          "cubes": [
+            {
+              "origin": [-7.5, 0.5, -7.75],
+              "size": [15, 15, 0],
+              "uv": { "south": { "uv": [0, 0], "uv_size": [64, 64] } }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "description": {
+        "identifier": "geometry.clan_war_map_west",
+        "texture_width": 64,
+        "texture_height": 64,
+        "visible_bounds_width": 2,
+        "visible_bounds_height": 2,
+        "visible_bounds_offset": [0, 0.5, 0]
+      },
+      "bones": [
+        {
+          "name": "map",
+          "pivot": [0, 0, 0],
+          "cubes": [
+            {
+              "origin": [7.75, 0.5, -7.5],
+              "size": [0, 15, 15],
+              "uv": { "west": { "uv": [0, 0], "uv_size": [64, 64] } }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "description": {
+        "identifier": "geometry.clan_war_map_east",
+        "texture_width": 64,
+        "texture_height": 64,
+        "visible_bounds_width": 2,
+        "visible_bounds_height": 2,
+        "visible_bounds_offset": [0, 0.5, 0]
+      },
+      "bones": [
+        {
+          "name": "map",
+          "pivot": [0, 0, 0],
+          "cubes": [
+            {
+              "origin": [-7.75, 0.5, -7.5],
+              "size": [0, 15, 15],
+              "uv": { "east": { "uv": [0, 0], "uv_size": [64, 64] } }
             }
           ]
         }

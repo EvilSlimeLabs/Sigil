@@ -50,10 +50,7 @@
       {
         "condition": "q.block_state('minecraft:block_face') == 'north'",
         "components": {
-          "minecraft:geometry": "geometry.clan_war_map_wall",
-          "minecraft:transformation": {
-            "rotation": [0, 0, 0]
-          },
+          "minecraft:geometry": "geometry.clan_war_map_north",
           "minecraft:selection_box": {
             "origin": [-8, 0, 7],
             "size": [16, 16, 1]
@@ -63,10 +60,7 @@
       {
         "condition": "q.block_state('minecraft:block_face') == 'south'",
         "components": {
-          "minecraft:geometry": "geometry.clan_war_map_wall",
-          "minecraft:transformation": {
-            "rotation": [0, 180, 0]
-          },
+          "minecraft:geometry": "geometry.clan_war_map_south",
           "minecraft:selection_box": {
             "origin": [-8, 0, -8],
             "size": [16, 16, 1]
@@ -76,10 +70,7 @@
       {
         "condition": "q.block_state('minecraft:block_face') == 'west'",
         "components": {
-          "minecraft:geometry": "geometry.clan_war_map_wall",
-          "minecraft:transformation": {
-            "rotation": [0, 90, 0]
-          },
+          "minecraft:geometry": "geometry.clan_war_map_west",
           "minecraft:selection_box": {
             "origin": [7, 0, -8],
             "size": [1, 16, 16]
@@ -89,10 +80,7 @@
       {
         "condition": "q.block_state('minecraft:block_face') == 'east'",
         "components": {
-          "minecraft:geometry": "geometry.clan_war_map_wall",
-          "minecraft:transformation": {
-            "rotation": [0, -90, 0]
-          },
+          "minecraft:geometry": "geometry.clan_war_map_east",
           "minecraft:selection_box": {
             "origin": [-8, 0, -8],
             "size": [1, 16, 16]

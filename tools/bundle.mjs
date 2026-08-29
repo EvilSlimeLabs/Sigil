@@ -178,6 +178,33 @@ if (pkg.version !== version) {
   fail(`version mismatch: manifests are ${version}, package.json is ${pkg.version}`);
 }
 
+// The pack list shows a description and no version, so the description leads
+// with one. That buys a version you can read in-game at the cost of a string
+// that can drift from the manifest beside it — which is what this stops. The
+// resource pack's description is also translated, and the .lang entry is the
+// one the game actually shows, so it is checked too rather than assumed to
+// have been updated alongside the manifest.
+const versionTag = `v${version} `;
+/** @type {Array<[string, string | undefined]>} */
+const described = [
+  [`${BP}/manifest.json`, bp.header.description],
+  [`${RP}/manifest.json`, rp.header.description],
+  [
+    `${RP}/texts/en_US.lang`,
+    fs
+      .readFileSync(path.join(ROOT, RP, 'texts', 'en_US.lang'), 'utf8')
+      .split(/\r?\n/)
+      .find((line) => line.startsWith('pack.description='))
+      ?.slice('pack.description='.length),
+  ],
+];
+for (const [where, description] of described) {
+  if (description === undefined) fail(`${where} has no pack description`);
+  else if (!description.startsWith(versionTag)) {
+    fail(`${where} description does not start with "${versionTag.trim()}": ${description}`);
+  }
+}
+
 // Every UUID in the release must be its own. Minecraft indexes packs by UUID and
 // quietly keeps only one of a colliding pair.
 const uuids = new Map();

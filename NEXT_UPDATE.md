@@ -199,16 +199,35 @@ before the structural work in F, not after.
    hand interaction and the support check. If the smoke pass shows the
    registration did not take, the fix is to move the declaration into
    `components` and raise the block's `format_version`.
-6. **Zero-thickness geometry.** The war map's two panels are cubes with a
-   zero-length axis, which is the standard way to draw a flat decal and renders
-   as a single double-sided quad. Worth confirming it is not culled, and that
-   the fractional offset off the mounting surface is enough to stop z-fighting
-   without the panel visibly floating.
-7. **`Player.chatNameSuffix`.** The chat components ordered past the player's
+6. **`replace_block_item` on the War Map.** A block's generated item form
+   always stacks to 64, and `minecraft:max_stack_size` is an item component
+   with no block equivalent — so the map now ships an item of its own, sharing
+   the block's identifier and claiming it with `minecraft:block_placer`'s
+   `replace_block_item`. Worth confirming the block still places normally from
+   it, still drops that item when broken, and appears once rather than twice in
+   the creative menu.
+7. **The War Map's per-facing geometry and its hitbox.** The wall panels were
+   one model turned by `minecraft:transformation`; the hitbox came out on the
+   same side whichever face the map was hung on, so the transform is gone and
+   each facing has its own model with its quad authored in place. Worth hanging
+   one on all four walls and confirming the outline sits on the map and the art
+   faces outward on each. If a facing comes out mirrored, only that model's
+   `uv` needs flipping, and no other facing is affected — which is the point of
+   authoring them separately.
+8. **The War Map's single-quad panels.** Each panel is one face: the other
+   five are omitted from the model's `uv` map, which the documentation says
+   removes them. It stays visible from both sides only because `alpha_test`
+   does not cull back faces — which is what `alpha_test_single_sided` was
+   added to do, so the behaviour is deliberate and documented rather than
+   accidental. Worth looking at a placed map from below and from behind. If a
+   face turns out to render anyway, or the back turns out to be culled, the
+   fallback is a one-pixel box whose four narrow faces sample a transparent
+   texel from inside one of the holes worn through the sheet.
+9. **`Player.chatNameSuffix`.** The chat components ordered past the player's
    name are written to it. It sits beside `chatNamePrefix` in the same beta
    API, so it is very likely present wherever the prefix is, but only the
    prefix has ever been exercised.
-8. **The material colour codes.** `§g` and `§h`–`§v` are Bedrock-only additions
+10. **The material colour codes.** `§g` and `§h`–`§v` are Bedrock-only additions
    and are now offered in the colour dropdown. A code the running game does not
    know renders as literal text rather than colour, which would be visible
    immediately in the dropdown itself.

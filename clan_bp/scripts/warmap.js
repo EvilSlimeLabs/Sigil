@@ -18,6 +18,15 @@
  * survive it being unavailable; {@link openWarScreen} de-duplicates so a game
  * that delivers both does not open the screen twice.
  *
+ * ── Why the ceiling is refused twice ───────────────────────────────────────
+ *
+ * The block declares `minecraft:placement_filter` with `allowed_faces` of
+ * `["up", "side"]`, which should be the whole story — but maps were still going
+ * up on ceilings in a live world. Rather than guess which of the placement
+ * filter, the placement trait and the block-placer item is not honouring it,
+ * `beforeOnPlayerPlace` refuses a downward face outright. The filter stays as
+ * the declarative statement of intent; this is what actually enforces it.
+ *
  * ── Why the map checks its own support ─────────────────────────────────────
  *
  * It hangs like a painting, so it should fall like one. Bedrock raises no
@@ -27,7 +36,7 @@
  * a piston or an explosion — cases a break handler would miss.
  */
 
-import { system, world, ItemStack } from '@minecraft/server';
+import { system, world, Direction, ItemStack } from '@minecraft/server';
 import { WAR_MAP_BLOCK } from './config.js';
 import * as ui from './ui.js';
 
@@ -41,6 +50,10 @@ export const WAR_MAP_COMPONENT = 'clan:war_map';
  * The state records the face that was placed *on*, so the supporting block is
  * always in the opposite direction from the map: a map placed against a block's
  * north face is standing north of it, and is held up from the south.
+ *
+ * `down` is kept even though a ceiling can no longer be built on: a map put up
+ * before that refusal existed should be checked against the block above it, not
+ * torn down on the next tick for a rule it predates.
  *
  * @type {Record<string, import('@minecraft/server').Vector3>}
  */
@@ -143,6 +156,13 @@ function collapse(block) {
 export function register(registry) {
   try {
     registry.registerCustomComponent(WAR_MAP_COMPONENT, {
+      beforeOnPlayerPlace: (event) => {
+        // `face` is the face of the block being built against, so a downward
+        // one means the player is hanging the map from a ceiling. There is no
+        // ceiling geometry and no support direction for it, and a map that
+        // cannot be held up should not go up in the first place.
+        if (event.face === Direction.Down) event.cancel = true;
+      },
       onPlayerInteract: (event) => {
         const player = event.player;
         if (player) openWarScreen(player);

@@ -7,10 +7,11 @@
 // Randomness runs through a seeded generator, so the output is identical on
 // every run — a texture that changed every build would make diffs useless.
 //
-//   clan_war_map.png   64x64  a torn, stained campaign map
-//   clan_compass.png   16x16  an iron compass with a red north needle
+//   clan_war_map.png       64x64  a torn, stained campaign map
+//   clan_war_map_item.png  16x16  the same map as an inventory icon
+//   clan_compass.png       16x16  an iron compass, brass-ringed, red north needle
 
-import { writePng, canvas, set, opaque, clear, shade, line, disc, triangle, rng } from './pixels.mjs';
+import { writePng, canvas, set, opaque, clear, shade, line, triangle, rng } from './pixels.mjs';
 
 // ── The war map ───────────────────────────────────────────────────────────
 
@@ -255,90 +256,172 @@ function makeWarMap() {
 
 // ── The compass ───────────────────────────────────────────────────────────
 //
-// Drawn at 16x16, the resolution every vanilla item uses. The first attempt was
-// 32x32, which is the single biggest reason it read as a foreign object beside
-// the rest of the hotbar: twice the detail of everything around it, with
-// gradients and highlights no vanilla item has.
+// Third attempt, and the first one drawn rather than computed.
 //
-// It also lost the tick marks. A ring of evenly spaced marks around a dial is
-// what a clock face looks like; the vanilla compass has none, and neither does
-// this one now. What is left is what actually says "compass": an iron ring, a
-// dark dial recessed inside it, and a two-tone needle with red at the north
-// end. Four colours of iron and three of dial, which is about the palette
-// budget a vanilla item works to.
+// The first was 32x32 with a brass housing and a ring of evenly spaced tick
+// marks — twice the detail of anything beside it in the hotbar, and a ring of
+// ticks around a dial is a clock face, not a compass. The second dropped to
+// 16x16 and lost the ticks, but was still built from concentric `disc()` calls
+// with the light and shade laid on as a diagonal sweep. That is what was left
+// to fix: perfect circles and a mathematically straight shading seam are not
+// how any vanilla item is drawn, and no amount of recolouring hides it.
+//
+// So this one is a pixel grid, written out below. It is still art in code and
+// still reviewable in a diff — more so, since the diff shows the picture — but
+// the silhouette is a chunky hand-cut octagon rather than a rasterised circle,
+// and the shading steps where a pixel artist would step it.
+//
+// What makes it read as vanilla: a hard dark outline all round, three flat
+// tones of iron with no blending between them, light from the upper left, and
+// a palette of ten colours. What keeps it from reading as a clock: no ticks,
+// and a dark dial carrying a red-and-white needle rather than a pale face.
+//
+// What makes it special is the thin brass ring seated between the iron housing
+// and the dial. Vanilla mixes materials on a single item all the time, so the
+// accent reads as ornament rather than as a different game's art — and the
+// item already carries `minecraft:foil`, so the enchant glint is doing the
+// rest of that work.
 
-const COMPASS = {
-  outline: [42, 39, 35],
-  ironLight: [198, 198, 198],
-  iron: [158, 158, 158],
-  ironShade: [112, 112, 112],
-  dialRim: [58, 54, 49],
-  dial: [78, 74, 66],
-  dialLight: [96, 92, 83],
-  needleRed: [188, 52, 46],
-  needleWhite: [228, 226, 220],
-  pin: [34, 32, 28],
+const COMPASS_PALETTE = {
+  k: [44, 42, 48], // outline, and the darkest iron
+  d: [92, 95, 102], // iron, shadowed
+  m: [138, 142, 150], // iron, midtone
+  l: [186, 190, 198], // iron, lit
+  w: [222, 226, 232], // iron, highlight
+  g: [140, 102, 38], // brass, shadowed
+  G: [214, 168, 74], // brass, lit
+  n: [28, 32, 48], // dial
+  R: [190, 52, 48], // needle, north
+  W: [232, 232, 238], // needle, south
 };
 
+/**
+ * The compass, one character per pixel.
+ *
+ * The needle's waist falls between rows 7 and 8 and its shaft between columns 7
+ * and 8, which is the exact centre of a 16x16 tile — an off-centre needle is
+ * the first thing that looks wrong on a compass.
+ */
+const COMPASS_PIXELS = [
+  '................',
+  '.....kkkkkk.....',
+  '...kkwwwwwwkk...',
+  '..kwwlllmmmmdk..',
+  '..kwlGGggggmdk..',
+  '.kwlGGnRRnggmdk.',
+  '.kwlGnnRRnngmdk.',
+  '.kwlGnRRRRngmdk.',
+  '.klmgnWWWWngmdk.',
+  '.klmgnnWWnngddk.',
+  '.kmmggnWWnggddk.',
+  '..kmmggggggddk..',
+  '..kmmddddddddk..',
+  '...kkddddddkk...',
+  '.....kkkkkk.....',
+  '................',
+];
+
 function makeCompass() {
+  const S = COMPASS_PIXELS.length;
+  const c = canvas(S, S);
+
+  COMPASS_PIXELS.forEach((row, y) => {
+    if (row.length !== S) {
+      throw new Error(`compass row ${y} is ${row.length} pixels, expected ${S}`);
+    }
+    [...row].forEach((key, x) => {
+      if (key === '.') return;
+      const rgb = COMPASS_PALETTE[key];
+      if (!rgb) throw new Error(`compass row ${y} uses "${key}", which is not in the palette`);
+      set(c, x, y, rgb);
+    });
+  });
+
+  return c;
+}
+
+// ── The war map's item icon ───────────────────────────────────────────────
+//
+// A block normally gets its inventory icon from a render of its own model, and
+// that is what the War Map used until it needed a real item to carry a stack
+// size of one. An item has to name an icon, so here is one.
+//
+// It is drawn fresh at 16x16 rather than pointing the icon at the 64x64 block
+// texture: scaled down to a slot, the torn edges and route markings on that
+// one turn to mud. What survives at sixteen pixels is a sheet, a fold and a
+// red cross, so that is what this is.
+
+const MAP_ICON = {
+  edge: [150, 120, 78],
+  parchment: [222, 198, 152],
+  parchmentLight: [236, 214, 172],
+  parchmentDark: [198, 170, 122],
+  ink: [86, 66, 44],
+  red: [178, 46, 40],
+};
+
+function makeWarMapIcon() {
   const S = 16;
   const c = canvas(S, S);
-  const cx = 7.5;
-  const cy = 7.5;
 
-  // The body: a dark outline with the iron ring inside it, so the silhouette
-  // stays crisp against a bright inventory slot.
-  disc(c, cx, cy, 7.4, COMPASS.outline);
-  disc(c, cx, cy, 6.5, COMPASS.iron);
-
-  // One light source, upper left, expressed as two flat bands rather than a
-  // gradient — the way vanilla shades a round item.
-  for (let y = 0; y < S; y++) {
-    for (let x = 0; x < S; x++) {
-      const d = Math.hypot(x - cx, y - cy);
-      if (d > 6.5 || d < 3.6) continue;
-      const diagonal = x + y;
-      if (diagonal < 13) set(c, x, y, COMPASS.ironLight);
-      else if (diagonal > 17) set(c, x, y, COMPASS.ironShade);
+  // The sheet: an inset rectangle with the corners knocked off, so it reads as
+  // a loose page rather than a card.
+  for (let y = 2; y <= 13; y++) {
+    for (let x = 1; x <= 14; x++) {
+      const corner =
+        (x <= 2 && y <= 3) || (x >= 13 && y <= 3) || (x <= 2 && y >= 12) || (x >= 13 && y >= 12);
+      if (corner) continue;
+      set(c, x, y, MAP_ICON.parchment);
     }
   }
 
-  // The dial, recessed: a dark rim, then the face, then a lit upper-left edge
-  // so it reads as sunk into the housing rather than painted on it.
-  disc(c, cx, cy, 4.3, COMPASS.dialRim);
-  disc(c, cx, cy, 3.5, COMPASS.dial);
+  // A darker rim one pixel in from the silhouette, which is what gives a flat
+  // shape depth at this size.
   for (let y = 0; y < S; y++) {
     for (let x = 0; x < S; x++) {
-      const d = Math.hypot(x - cx, y - cy);
-      if (d <= 3.5 && d > 2.4 && x + y < 14) set(c, x, y, COMPASS.dialLight);
+      if (!opaque(c, x, y)) continue;
+      const exposed =
+        !opaque(c, x - 1, y) || !opaque(c, x + 1, y) || !opaque(c, x, y - 1) || !opaque(c, x, y + 1);
+      if (exposed) set(c, x, y, MAP_ICON.edge);
     }
   }
 
-  // The needle, placed pixel by pixel rather than rasterised from a shape.
-  //
-  // At sixteen pixels a triangle narrow enough to fit the dial rounds down to a
-  // single column, which is a line and not a needle. Two columns for the shaft
-  // and four at the shoulders is the smallest arrangement that still reads as
-  // one — and it is the same trick the vanilla texture uses, because there is
-  // no other way to draw a taper this small.
-  const shaft = [7, 8];
-  const shoulder = [6, 7, 8, 9];
-  for (const [row, columns, rgb] of [
-    [4, shaft, COMPASS.needleRed],
-    [5, shaft, COMPASS.needleRed],
-    [6, shaft, COMPASS.needleRed],
-    [7, shoulder, COMPASS.needleRed],
-    [8, shoulder, COMPASS.needleWhite],
-    [9, shaft, COMPASS.needleWhite],
-    [10, shaft, COMPASS.needleWhite],
-    [11, shaft, COMPASS.needleWhite],
+  // One light source, upper left.
+  for (const [x, y] of [
+    [3, 3],
+    [4, 3],
+    [5, 3],
+    [3, 4],
+    [2, 5],
+    [2, 6],
   ]) {
-    for (const column of columns) set(c, column, row, rgb);
+    if (opaque(c, x, y)) set(c, x, y, MAP_ICON.parchmentLight);
   }
-  // The hub: the two pixels where the halves meet, darkened so the needle
-  // reads as pivoting rather than as one solid bar.
-  set(c, 7, 7, COMPASS.pin);
-  set(c, 8, 8, COMPASS.pin);
+
+  // One fold, down the middle. A second crease across it turned the whole icon
+  // into a plus sign at this size, which is not what a chart looks like.
+  for (let y = 3; y <= 12; y++) if (opaque(c, 8, y)) set(c, 8, y, MAP_ICON.parchmentDark);
+
+  // A few ink marks standing in for terrain, kept to the left of the fold so
+  // the right half is clear for the objective.
+  for (const [x, y] of [
+    [4, 5],
+    [5, 5],
+    [4, 6],
+    [3, 9],
+    [4, 10],
+    [5, 10],
+    [6, 7],
+  ]) {
+    if (opaque(c, x, y)) set(c, x, y, MAP_ICON.ink);
+  }
+
+  // The objective: a three-by-three cross, which is the smallest X that still
+  // reads as one rather than as a smudge.
+  for (let i = -1; i <= 1; i++) {
+    if (opaque(c, 11 + i, 9 + i)) set(c, 11 + i, 9 + i, MAP_ICON.red);
+    if (opaque(c, 11 + i, 9 - i)) set(c, 11 + i, 9 - i, MAP_ICON.red);
+  }
 
   return c;
 }
@@ -346,5 +429,10 @@ function makeCompass() {
 // ── Output ────────────────────────────────────────────────────────────────
 
 const out = 'clan_rp/textures';
-console.log('clan_war_map.png ', writePng(`${out}/blocks/clan_war_map.png`, makeWarMap()), 'bytes');
-console.log('clan_compass.png ', writePng(`${out}/items/clan_compass.png`, makeCompass()), 'bytes');
+console.log('clan_war_map.png      ', writePng(`${out}/blocks/clan_war_map.png`, makeWarMap()), 'bytes');
+console.log(
+  'clan_war_map_item.png ',
+  writePng(`${out}/items/clan_war_map_item.png`, makeWarMapIcon()),
+  'bytes',
+);
+console.log('clan_compass.png      ', writePng(`${out}/items/clan_compass.png`, makeCompass()), 'bytes');

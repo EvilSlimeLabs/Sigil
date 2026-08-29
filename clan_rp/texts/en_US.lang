@@ -3,7 +3,11 @@
 ## entries are the fallback and the place to translate from.
 
 tile.clan:war_map.name=War Map
+## The War Map is a block with an item of its own, so it needs both keys:
+## the tile name is what the placed block is called, the item name what
+## the thing in your hand is called.
+item.clan:war_map.name=War Map
 item.clan:clan_compass.name=Clan Menu
 
 pack.name=Sigil Resources
-pack.description=Textures for Sigil: the War Map block and the Clan Menu compass.
+pack.description=v1.2.1 — Textures for Sigil: the War Map block and the Clan Menu compass.
