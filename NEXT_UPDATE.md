@@ -214,14 +214,25 @@ before the structural work in F, not after.
    that the compass rose reads sensibly now that it no longer always points
    north — the alternative was a fixed 180-degree correction, which keeps north
    but does not turn with the player.
-8. **The War Map's placement surfaces.** `minecraft:placement_filter` is gone,
-   so placement is policed only by `beforeOnPlayerPlace` (no ceilings) and the
-   support tick (nothing behind it). Worth confirming a map now hangs on a top
-   slab, the flat side of a staircase and a glass block, still refuses a
-   ceiling, and still drops when its support is broken. The support test is now
-   "not air and not liquid" rather than `isSolid`, which is deliberately
-   permissive — a map on a torch would survive, and that is preferred over a map
-   that cannot go on a slab.
+8. **The War Map's placement surfaces, via `Block.canPlace`.** Placement asks
+   the engine whether an *item frame* could go on that face — `canPlace` is a
+   beta API that applies the game's own rules, so the answer is exactly right
+   by construction rather than approximated. Worth confirming stairs, top
+   slabs, glass, closed trapdoors, scaffolding and composters all accept a map,
+   and that a torch or a flower does not.
+
+   The support tick deliberately does *not* use it: the map's own cell is
+   occupied by the map, which is not a valid placement, so `canPlace` there
+   would destroy every map on its first tick. The tick stays on "not air, not
+   liquid", which only has to notice support being removed. A tick looser than
+   placement can only spare something placement allowed; the reverse would
+   delete blocks the game let you put down.
+
+   Everything else was tried first and recorded so it is not retried: `isSolid`
+   means a full cube and refuses every partial block above; "not air and not
+   liquid" accepts torches; block tags are material names and say nothing about
+   faces.
+
 9. **The War Map's collision box.** The map used to have none, which is what
    let a painting on a neighbouring wall size itself as though the map's block
    were empty and grow straight over it. It now has one matching each facing's

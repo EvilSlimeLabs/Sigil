@@ -12,6 +12,12 @@
  *    and does its real work inside `system.run`, reporting back with
  *    `player.sendMessage` rather than a command result.
  *
+ * `kick`, `list` and `transfer` share a name with a vanilla command. Bedrock
+ * gives a custom command a bare alias only when the name is free, so it logs a
+ * warning at load saying the full `clan:` form is required. That is exactly how
+ * these commands are documented and used, so the warning is noise about a
+ * shorthand that was never on offer, and the names stay as they read best.
+ *
  * Every command registers at `CommandPermissionLevel.Any` with
  * `cheatsRequired: false`, and enforces permission in script. Registering the
  * staff commands at operator level would lock out non-op holders of a

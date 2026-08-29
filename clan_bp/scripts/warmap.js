@@ -94,6 +94,37 @@ const SUPPORT_OFFSET = {
  */
 const INTERACT_COOLDOWN_TICKS = 10;
 
+/**
+ * The block the engine is asked about when deciding whether a map may hang
+ * somewhere.
+ *
+ * An item frame is a block in Bedrock, and it accepts exactly the surfaces a
+ * War Map should: full blocks, stairs, slabs, glass, closed trapdoors,
+ * scaffolding, composters — and not torches or flowers. Rather than approximate
+ * that rule, `Block.canPlace` asks the game to apply its own.
+ */
+const REFERENCE_BLOCK = 'minecraft:frame';
+
+/**
+ * The face of the supporting block that a map is pressed against, for each
+ * value of `minecraft:block_face`.
+ *
+ * It is always the direction back from the support to the map, which is the
+ * negation of {@link SUPPORT_OFFSET} — and negating those offsets happens to
+ * give the same six words again. Written out rather than derived so the
+ * coincidence is visible instead of load-bearing.
+ *
+ * @type {Record<string, import('@minecraft/server').Direction>}
+ */
+const SUPPORT_FACE = {
+  up: Direction.Up,
+  down: Direction.Down,
+  north: Direction.North,
+  south: Direction.South,
+  west: Direction.West,
+  east: Direction.East,
+};
+
 /** @type {Map<string, number>} */
 const lastInteraction = new Map();
 
@@ -121,50 +152,25 @@ export function forget(playerId) {
 }
 
 /**
- * Whether the surface a placed map was mounted on is still there.
+ * Whether a placed map still has its support.
  *
- * `isSolid` is the test, which is the strictest thing the API offers and the
- * nearest match to where a painting will hang: it excludes air, liquid, and the
- * blocks the docs call out as not solid, such as fences and ladders.
+ * Deliberately looser than the test placement uses, and the asymmetry is the
+ * point: this only has to notice the support being *removed*. Asking
+ * `canPlace` here would be wrong twice over — the map's own cell is occupied by
+ * the map, which is not a valid placement, so every map would be destroyed on
+ * its first tick.
  *
- * This briefly used "not air and not liquid" instead, on the theory that
- * `isSolid` was what stopped maps going on slabs and stairs. That was almost
- * certainly wrong — the culprit was `minecraft:placement_filter`, removed at the
- * same time, and the symptom was placement being *refused* rather than a map
- * popping off, which is what a failing support check looks like. Both were
- * changed at once, so neither was proven; this puts the strict test back and
- * leaves the filter out, which is the one variable actually worth isolating.
+ * A check that is more permissive than placement can only ever spare something
+ * placement already allowed. The reverse — a tick stricter than placement —
+ * would quietly delete blocks the game let you put down, which is the failure
+ * worth designing against.
  *
  * @param {import('@minecraft/server').Block} block
  * @returns {boolean}
  */
 function isSupported(block) {
-  const face = block.permutation.getState('minecraft:block_face');
-  return hasSupportBehind(block, String(face ?? 'up'));
-}
-
-/**
- * Whether the cell a map occupies has something behind it to hang on.
- *
- * Shared by the placement check and the tick so the two can never disagree
- * about what counts — a map refused at placement for a reason the tick would
- * have forgiven, or the reverse, is the kind of inconsistency nobody can debug
- * from in-game.
- *
- * The direction comes either from the placement event's face or from the
- * stored `minecraft:block_face`; both use the same six words, and
- * {@link SUPPORT_OFFSET} maps every one of them to the block behind.
- *
- * Fails open. If the direction is unrecognised or the neighbour cannot be read,
- * the map is allowed: a block that will not place is a far worse bug than one
- * that places somewhere odd.
- *
- * @param {import('@minecraft/server').Block} block
- * @param {string} facing
- * @returns {boolean}
- */
-function hasSupportBehind(block, facing) {
-  const offset = SUPPORT_OFFSET[facing.toLowerCase()];
+  const face = String(block.permutation.getState('minecraft:block_face') ?? 'up');
+  const offset = SUPPORT_OFFSET[face.toLowerCase()];
   if (!offset) return true;
 
   try {
@@ -173,7 +179,50 @@ function hasSupportBehind(block, facing) {
     // the chunk is there is the difference between a slow check and a
     // destructive one.
     if (support === undefined) return true;
-    return support.isSolid;
+    return !support.isAir && !support.isLiquid;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Whether a map may be hung here, asked of the engine rather than guessed at.
+ *
+ * `Block.canPlace` answers "may this block go on that face of me", applying the
+ * game's own placement rules — so pointing it at an item frame gets the exact
+ * surface set an item frame accepts, which is the rule this block wants. Stairs,
+ * top slabs, glass, closed trapdoors, scaffolding and composters pass; torches
+ * and flowers do not.
+ *
+ * Every predicate reachable without it was tried and none of them work.
+ * `isSolid` means a *full cube* and refuses every partial block in that list.
+ * "Not air and not liquid" accepts torches. Tags are material names — `wood`,
+ * `stone` — and say nothing about faces. A hand-maintained deny-list would
+ * need updating for every block Mojang adds and be wrong for every block
+ * another pack adds.
+ *
+ * Fails open, in three places: an unrecognised direction, a `canPlace` that is
+ * not there (it is a beta API), or a throw. A block that refuses to place is a
+ * far worse bug than one that places somewhere odd, and the tick is still
+ * behind this as a net.
+ *
+ * @param {import('@minecraft/server').Block} block the cell the map would fill
+ * @param {string} facing the `minecraft:block_face` the map is being hung on
+ * @returns {boolean}
+ */
+function canHangHere(block, facing) {
+  const key = facing.toLowerCase();
+  const offset = SUPPORT_OFFSET[key];
+  const face = SUPPORT_FACE[key];
+  if (!offset || !face) return true;
+
+  try {
+    const support = block.offset(offset);
+    if (support === undefined) return true;
+    if (typeof support.canPlace !== 'function') {
+      return !support.isAir && !support.isLiquid;
+    }
+    return support.canPlace(REFERENCE_BLOCK, face);
   } catch {
     return true;
   }
@@ -226,7 +275,7 @@ export function register(registry) {
         // Refuse now rather than drop a second later. The tick below is still
         // the safety net for support that disappears afterwards, but a map that
         // could never have stayed should not appear at all.
-        if (!hasSupportBehind(event.block, String(event.face))) event.cancel = true;
+        if (!canHangHere(event.block, String(event.face))) event.cancel = true;
       },
       onPlayerInteract: (event) => {
         const player = event.player;

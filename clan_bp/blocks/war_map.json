@@ -21,7 +21,8 @@
       "minecraft:material_instances": {
         "*": {
           "texture": "clan_war_map",
-          "render_method": "alpha_test"
+          "render_method": "alpha_test",
+          "face_dimming": false
         }
       },
       "minecraft:collision_box": {
