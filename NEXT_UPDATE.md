@@ -214,34 +214,25 @@ before the structural work in F, not after.
    that the compass rose reads sensibly now that it no longer always points
    north — the alternative was a fixed 180-degree correction, which keeps north
    but does not turn with the player.
-8. **The War Map's placement surfaces, via `Block.canPlace`.** Placement asks
-   the engine whether an *item frame* could go on that face — `canPlace` is a
-   beta API that applies the game's own rules, so the answer is exactly right
-   by construction rather than approximated. Worth confirming stairs, top
-   slabs, glass, closed trapdoors, scaffolding and composters all accept a map,
-   and that a torch or a flower does not.
+8. **The War Map's placement, outline and collision.** Placement accepts
+   anything that is not air or liquid, matching how permissive paintings and
+   item frames turn out to be in practice.
 
-   The support tick deliberately does *not* use it: the map's own cell is
-   occupied by the map, which is not a valid placement, so `canPlace` there
-   would destroy every map on its first tick. The tick stays on "not air, not
-   liquid", which only has to notice support being removed. A tick looser than
-   placement can only spare something placement allowed; the reverse would
-   delete blocks the game let you put down.
+   What stops a painting expanding over the map took three builds to pin down,
+   so the answer is written here rather than rediscovered. A one-pixel selection
+   box tracing the panel does not do it — that is what shipped first, and
+   paintings ignored it. A collision box does, and a full 1x1x1 selection box
+   does too; the latter was tried and rejected for putting a cube-sized outline
+   around a flat panel.
 
-   Everything else was tried first and recorded so it is not retried: `isSolid`
-   means a full cube and refuses every partial block above; "not air and not
-   liquid" accepts torches; block tags are material names and say nothing about
-   faces.
+   The block therefore splits it by facing. Paintings only hang on walls, so the
+   four wall permutations carry a one-pixel collision box lying exactly over the
+   panel, flush to the wall — the wall stops the player a pixel later, so this
+   should never be felt. The floor variant has no collision and is walked over.
+   Selection boxes trace their own panel throughout. Worth confirming in a live
+   world that a wall map can be walked past, a floor map walked over, and a
+   painting hung beside a wall map sizes around it.
 
-9. **The War Map's collision box.** The map used to have none, which is what
-   let a painting on a neighbouring wall size itself as though the map's block
-   were empty and grow straight over it. It now has one matching each facing's
-   selection box, on the theory that a painting refuses space a solid block
-   occupies. The cost is that the map is no longer something you walk through:
-   flush against a wall that is imperceptible, and on the floor it is a
-   pressure plate's worth of step. Worth confirming the painting actually stops
-   there, and worth deciding whether the lost walk-through matters — reverting
-   is one line per permutation.
 10. **The War Map's X axis, now settled by observation.** Three separate things
    were wrong on the east and west faces and each was found by placing a map
    rather than by reasoning about the trait:

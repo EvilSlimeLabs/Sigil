@@ -147,6 +147,13 @@ function makeWarMap() {
   }
 
   // 7. Mountains as little carets, forest as stipple.
+  //
+  // The peak is the first row and the base the last, so each caret points up —
+  // which on this sheet is north, the way a hand-drawn chart marks high ground.
+  // They were built the other way up at first and read as pits.
+  //
+  // Shading is by column rather than by row, so it survives the flip untouched:
+  // west of the peak is the lit face, east of it the shadowed one.
   for (const [mx, my, mw] of [
     [36, 24, 4],
     [43, 21, 5],
@@ -154,7 +161,7 @@ function makeWarMap() {
     [45, 30, 3],
   ]) {
     for (let row = 0; row <= mw; row++) {
-      const half = mw - row;
+      const half = row;
       for (let i = -half; i <= half; i++) {
         draw(mx + i, my + row, i < 0 ? MAP.inkSoft : MAP.ink);
       }

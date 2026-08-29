@@ -15,9 +15,27 @@
  * Registering `onPlayerInteract` is what tells the engine the block is worth
  * interacting with. Beside it, `world.beforeEvents.playerInteractWithBlock`
  * cancels the interaction outright, which is a second thing entirely: the map
- * has no collision box, so without it a painting, a torch or another block
- * held at the time is placed straight through the map instead of the map being
- * used. Cancelling makes the block swallow the press the way a chest does.
+ * has no collision box, so without it a torch or another block held at the time
+ * is placed straight through the map instead of the map being used. Cancelling
+ * makes the block swallow the press the way a chest does.
+ *
+ * ── Why the walls collide and the floor does not ───────────────────────────
+ *
+ * A painting will not expand over a block the game reads as physically present,
+ * and three builds were spent finding what it reads. A one-pixel selection box
+ * tracing the panel is not enough — that is what the map first shipped with, and
+ * paintings sized themselves straight over it. A collision box is enough, but
+ * applied to every facing it costs the map the one quality an item frame most
+ * obviously has: being a thing you walk through. A full 1x1x1 selection box also
+ * works and costs nothing but an outline much larger than the panel, which is
+ * ugly enough to have been rejected.
+ *
+ * So `blocks/war_map.json` splits it by facing. Paintings only ever hang on
+ * walls, so the four wall permutations carry a one-pixel collision box laid
+ * exactly over the panel — flush against the wall, where that wall's own
+ * collision stops the player a pixel later and this one is never what they feel.
+ * The floor variant has no collision at all and is walked straight over. Every
+ * selection box traces its own panel, so the outline always follows the map.
  *
  * Sneaking is exempt, because that is the vanilla way to say "build here, do
  * not interact", and a wall carrying a war map should not become a dead spot
@@ -94,37 +112,6 @@ const SUPPORT_OFFSET = {
  */
 const INTERACT_COOLDOWN_TICKS = 10;
 
-/**
- * The block the engine is asked about when deciding whether a map may hang
- * somewhere.
- *
- * An item frame is a block in Bedrock, and it accepts exactly the surfaces a
- * War Map should: full blocks, stairs, slabs, glass, closed trapdoors,
- * scaffolding, composters — and not torches or flowers. Rather than approximate
- * that rule, `Block.canPlace` asks the game to apply its own.
- */
-const REFERENCE_BLOCK = 'minecraft:frame';
-
-/**
- * The face of the supporting block that a map is pressed against, for each
- * value of `minecraft:block_face`.
- *
- * It is always the direction back from the support to the map, which is the
- * negation of {@link SUPPORT_OFFSET} — and negating those offsets happens to
- * give the same six words again. Written out rather than derived so the
- * coincidence is visible instead of load-bearing.
- *
- * @type {Record<string, import('@minecraft/server').Direction>}
- */
-const SUPPORT_FACE = {
-  up: Direction.Up,
-  down: Direction.Down,
-  north: Direction.North,
-  south: Direction.South,
-  west: Direction.West,
-  east: Direction.East,
-};
-
 /** @type {Map<string, number>} */
 const lastInteraction = new Map();
 
@@ -186,43 +173,35 @@ function isSupported(block) {
 }
 
 /**
- * Whether a map may be hung here, asked of the engine rather than guessed at.
+ * Whether a map may be hung here.
  *
- * `Block.canPlace` answers "may this block go on that face of me", applying the
- * game's own placement rules — so pointing it at an item frame gets the exact
- * surface set an item frame accepts, which is the rule this block wants. Stairs,
- * top slabs, glass, closed trapdoors, scaffolding and composters pass; torches
- * and flowers do not.
+ * Anything that is not air and not liquid. That is as permissive as it sounds,
+ * and it is on purpose: paintings and item frames were tested against the same
+ * surfaces and turned out to accept nearly everything, so matching them means
+ * being loose rather than clever. A player who wants a map on a torch can have
+ * one.
  *
- * Every predicate reachable without it was tried and none of them work.
- * `isSolid` means a *full cube* and refuses every partial block in that list.
- * "Not air and not liquid" accepts torches. Tags are material names — `wood`,
- * `stone` — and say nothing about faces. A hand-maintained deny-list would
- * need updating for every block Mojang adds and be wrong for every block
- * another pack adds.
+ * This went through two stricter answers first, recorded so they are not
+ * retried. `isSolid` means a *full cube* and refuses stairs, top slabs, glass,
+ * trapdoors, scaffolding and composters. Asking `Block.canPlace` about an item
+ * frame is exactly right in principle and simply is not needed, now that the
+ * rule being matched is "almost anything".
  *
- * Fails open, in three places: an unrecognised direction, a `canPlace` that is
- * not there (it is a beta API), or a throw. A block that refuses to place is a
- * far worse bug than one that places somewhere odd, and the tick is still
- * behind this as a net.
+ * Fails open on an unrecognised direction or an unreadable neighbour: a block
+ * that refuses to place is a worse bug than one that places somewhere odd.
  *
  * @param {import('@minecraft/server').Block} block the cell the map would fill
  * @param {string} facing the `minecraft:block_face` the map is being hung on
  * @returns {boolean}
  */
 function canHangHere(block, facing) {
-  const key = facing.toLowerCase();
-  const offset = SUPPORT_OFFSET[key];
-  const face = SUPPORT_FACE[key];
-  if (!offset || !face) return true;
+  const offset = SUPPORT_OFFSET[facing.toLowerCase()];
+  if (!offset) return true;
 
   try {
     const support = block.offset(offset);
     if (support === undefined) return true;
-    if (typeof support.canPlace !== 'function') {
-      return !support.isAir && !support.isLiquid;
-    }
-    return support.canPlace(REFERENCE_BLOCK, face);
+    return !support.isAir && !support.isLiquid;
   } catch {
     return true;
   }
