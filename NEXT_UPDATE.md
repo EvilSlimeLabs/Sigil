@@ -15,3 +15,11 @@ Roughly in order of value per unit of work.
 - **Configurable war objectives** beyond kills — captures, duration,
   structures. The scoreboard objective is already indirected through the
   catalogue, so the rendering side is ready; the scoring side is not.
+
+## Unverified in game
+
+- **Placing a War Map while it is switched off.** `beforeOnPlayerPlace` cancels
+  the placement and sends the refusal a tick later. Check: with the War Map
+  off, try to place one. The item should stay in hand and the message should
+  appear once. A map that places, or a message that shows twice, means the
+  cancel or the deferred send is not behaving as assumed.

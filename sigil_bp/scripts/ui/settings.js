@@ -99,6 +99,16 @@ export function settingsMenu(player) {
         defaultValue: current.outpostsMayAlly === true,
       })
       .divider()
+      .header(TEXT.menu.items)
+      .toggle('ledgerEnabled', TEXT.menu.settingLedgerEnabled, {
+        defaultValue: current.ledgerEnabled !== false,
+      })
+      .label(TEXT.menu.ledgerDisabledHint)
+      .toggle('warMapEnabled', TEXT.menu.settingWarMapEnabled, {
+        defaultValue: current.warMapEnabled !== false,
+      })
+      .label(TEXT.menu.warMapDisabledHint)
+      .divider()
       .header(TEXT.menu.chatNotifications)
       .toggle('notifyEnabled', TEXT.menu.enableNotifications, { defaultValue: notes.enabled })
       .toggle('notifyCreated', TEXT.menu.clanCreated, { defaultValue: notes.clanCreated })
@@ -133,6 +143,8 @@ export function settingsMenu(player) {
       warsEnabled: response.bool('warsEnabled'),
       alliancesEnabled: response.bool('alliancesEnabled'),
       outpostsMayAlly: response.bool('outpostsMayAlly'),
+      ledgerEnabled: response.bool('ledgerEnabled'),
+      warMapEnabled: response.bool('warMapEnabled'),
       warRequiresAcceptance: response.bool('warNeedsAcceptance'),
       maxActiveWarsPerClan: response.num('maxWars', current.maxActiveWarsPerClan),
       opPollSeconds: nextPoll,

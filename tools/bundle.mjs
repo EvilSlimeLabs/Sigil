@@ -31,8 +31,8 @@ const DIST = path.join(ROOT, 'dist');
 /** The pack name carries punctuation that has no place in a filename. */
 const RELEASE = 'Sigil';
 
-const BP = 'clan_bp';
-const RP = 'clan_rp';
+const BP = 'sigil_bp';
+const RP = 'sigil_rp';
 
 /** Editor and OS droppings, which must never reach a release. */
 const JUNK = /^(\.|Thumbs\.db$|desktop\.ini$|.*\.tmp$)/i;

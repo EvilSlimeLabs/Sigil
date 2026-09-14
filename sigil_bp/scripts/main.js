@@ -9,7 +9,7 @@
  */
 
 import { system, world, Player } from '@minecraft/server';
-import { msg } from './format.js';
+import { msg, errorMsg } from './format.js';
 import { initSchema } from './storage.js';
 import * as playersRegistry from './players.js';
 import * as clans from './clans.js';
@@ -172,6 +172,12 @@ world.afterEvents.itemUse.subscribe((event) => {
   const player = event.source;
 
   if (ledger.isLedger(event.itemStack)) {
+    // A Ledger still in an inventory after the switch goes off stays there,
+    // but opens nothing.
+    if (!settings.ledgerEnabled()) {
+      player.sendMessage(errorMsg(TEXT.cmd.ledgerDisabled));
+      return;
+    }
     system.run(() => ui.mainMenu(player));
     return;
   }

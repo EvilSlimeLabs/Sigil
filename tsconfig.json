@@ -17,5 +17,5 @@
     "skipLibCheck": true,
     "types": []
   },
-  "include": ["clan_bp/scripts/**/*.js", "types/**/*.d.ts"]
+  "include": ["sigil_bp/scripts/**/*.js", "types/**/*.d.ts"]
 }

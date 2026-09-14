@@ -1,4 +1,4 @@
-# Sigil: Clans, Wars & Chat Tags
+# ![Sigil: Clans, Wars & Chat Tags](docs/banner.png)
 
 A Minecraft Bedrock add-on that gives players clans — with outposts that earn promotion, invited members, per-clan roles, a staff role system, wars with a kill scoreboard, and a fully configurable identity shown under the player's name and in chat.
 
@@ -36,13 +36,13 @@ Everything else — clans, wars, invites, roles, approvals, settings, nametags a
 
 The menu opens on what the player came for — their clan, their invites, the clan list. Everything a staff role or an admin can do sits behind two further buttons, **Admin** and **System Settings**: acting on somebody in particular versus setting a rule that applies to everybody. An ordinary player sees neither.
 
-Every player is given a **Clan Ledger** on their first join. Using it opens the menu — the whole system is reachable from there without typing anything, which is the point on a controller. Lost it? `/clan:ledger`. One is the limit: the command checks your inventory first and tells you so rather than handing out a second.
+Every player is given a **Clan Ledger** on their first join. Using it opens the menu — the whole system is reachable from there without typing anything, which is the point on a controller. Lost it? `/clan:ledger`. One is the limit: the command checks your inventory first and tells you so rather than handing out a second. Admins can switch the Ledger off in the settings.
 
 It was a compass for the first few versions, which was the wrong object: a compass points at something, and this opens a record. The ledger is the book a clan keeps, and what is behind it — membership, roles, standing — is what a ledger holds.
 
 ### The War Map
 
-A clan Leader gets one with `/clan:warmap`, puts it up in their base, and right-clicks it to declare war, answer declarations, check standings, or end a war. It is the only way into the war screen apart from `/clan:war` — the compass menu deliberately does not repeat it, so the map is a thing you go to rather than decoration.
+The Leader of a full clan gets one with `/clan:warmap`, puts it up in their base, and right-clicks it to declare war, answer declarations, check standings, or end a war. It is the only way into the war screen apart from `/clan:war` — the compass menu deliberately does not repeat it, so the map is a thing you go to rather than decoration. Admins can switch the War Map off in the settings; `/clan:war` keeps working.
 
 It mounts to surfaces like a painting rather than sitting there as a full cube: a flat panel you can walk through, placeable **on the floor or on any wall, but not on a ceiling**. Like a painting or an item frame it is not fussy about the surface — anything that is not air or liquid will hold it, including slabs, stairs, glass and scaffolding.
 
@@ -251,6 +251,8 @@ Defaults produce `✦ Steve` above the head with `Wolves` beneath, and `✦ [Wol
 - **Max active wars per clan** — default 0, meaning unlimited
 - **Enable the alliance system** — default on. Turning it off dissolves every standing alliance
 - **Outposts may forge alliances** — default off
+- **Give out the Clan Ledger** — default on. Turning it off stops new players receiving one, refuses `/clan:ledger`, and makes Ledgers already in inventories do nothing. `/clan:menu` is unaffected
+- **Enable the War Map** — default on. Turning it off refuses `/clan:warmap`, stops maps being placed, and makes maps already on walls do nothing. `/clan:war` is unaffected
 - **Chat notifications** — a master switch plus one per category: clan created, member joined, member left, clan disbanded, outpost promoted, war declared, war ended, alliance formed or ended. All default on.
 - **Staff roles may print any war record** — default on
 - **Re-check operator status every N seconds** — default **20**. Bedrock fires no event when someone is opped or de-opped, so admin status is polled; this is how often. Changing it takes effect immediately.
@@ -275,7 +277,7 @@ npm run verify  # type-check, audit, then run all five test suites
 npm run audit   # every player-visible string is in the catalogue; no import cycles
 ```
 
-The behavior pack ships as plain ES modules — no bundler, no transpile step, so what runs in the game is exactly what is in `clan_bp/scripts/`. Type safety comes from `// @ts-check` with JSDoc, checked against the real published `.d.ts`:
+The behavior pack ships as plain ES modules — no bundler, no transpile step, so what runs in the game is exactly what is in `sigil_bp/scripts/`. Type safety comes from `// @ts-check` with JSDoc, checked against the real published `.d.ts`:
 
 ```bash
 npm run check
@@ -301,8 +303,8 @@ The two pack icons are generated the same way, from the same drawing helpers in 
 node tools/make-icons.mjs
 ```
 
-Every string a player sees lives in `clan_bp/scripts/text.js`, so the whole player-facing surface can be read in one file — and translated from one file. `tools/text-codemod.mjs` maintains that catalogue: it reports and merges entries that say the same thing, and applies key renames across the pack and the tests in one pass.
+Every string a player sees lives in `sigil_bp/scripts/text.js`, so the whole player-facing surface can be read in one file — and translated from one file. `tools/text-codemod.mjs` maintains that catalogue: it reports and merges entries that say the same thing, and applies key renames across the pack and the tests in one pass.
 
-The menus live in `clan_bp/scripts/ui/`, one module per family — the player's own clan, wars, staff tools, settings, the Peaceful roster — over a `shared.js` that holds the screen runner, the confirm dialog and the paged pickers. They import in one direction only, and `ui.js` is the front door: it draws the main menu and re-exports the screens the commands, the War Map and the Clan Ledger open directly.
+The menus live in `sigil_bp/scripts/ui/`, one module per family — the player's own clan, wars, staff tools, settings, the Peaceful roster — over a `shared.js` that holds the screen runner, the confirm dialog and the paged pickers. They import in one direction only, and `ui.js` is the front door: it draws the main menu and re-exports the screens the commands, the War Map and the Clan Ledger open directly.
 
 Work still ahead — the runtime assumptions that need a pass in a live world, and the expansions the system is shaped for — is recorded in [NEXT_UPDATE.md](NEXT_UPDATE.md).

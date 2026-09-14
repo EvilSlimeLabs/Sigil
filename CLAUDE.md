@@ -10,15 +10,15 @@ and are the parts to change or drop when reusing this file elsewhere.
 ## The project **[project]**
 
 **Sigil: Clans, Wars & Chat Tags** — a Minecraft Bedrock add-on for player-run
-clans, clan wars and chat identity. Two packs: `clan_bp/` (behavior) and
-`clan_rp/` (resource).
+clans, clan wars and chat identity. Two packs: `sigil_bp/` (behavior) and
+`sigil_rp/` (resource).
 
 | Path | What it is |
 | --- | --- |
-| `clan_bp/scripts/` | The whole system, plain ES modules |
-| `clan_bp/scripts/ui/` | The menus, one module per family |
-| `clan_bp/scripts/text.js` | Every string a player sees |
-| `clan_rp/` | Textures, models, `en_US.lang` |
+| `sigil_bp/scripts/` | The whole system, plain ES modules |
+| `sigil_bp/scripts/ui/` | The menus, one module per family |
+| `sigil_bp/scripts/text.js` | Every string a player sees |
+| `sigil_rp/` | Textures, models, `en_US.lang` |
 | `tools/` | Texture generation, audits, the bundler, the text codemod |
 | `tests/` | Suites that run the shipped modules under Node |
 | `dist/` | Built `.mcaddon` and `.mcpack` files |
@@ -57,11 +57,11 @@ Seven fields across four files, plus three descriptions. All of them move
 together; `npm run release` refuses to build if any disagree.
 
 - `package.json` — the `"version"` string.
-- `clan_bp/manifest.json` — **three** array fields: `header.version`,
+- `sigil_bp/manifest.json` — **three** array fields: `header.version`,
   `modules[0].version`, and the version on the dependency entry carrying the
   resource pack's `uuid`. That last must match the resource pack's own header
   version, or the behavior pack asks for a resource pack that does not exist.
-- `clan_rp/manifest.json` — **two** array fields: `header.version` and
+- `sigil_rp/manifest.json` — **two** array fields: `header.version` and
   `modules[0].version`.
 
 A find-and-replace of the version array (`[1, 9, 0]` → `[1, 10, 0]`) across both
@@ -72,9 +72,9 @@ manifests catches all five array fields at once.
 
 Each pack description leads with `v<version> — `. There are three:
 
-- `clan_bp/manifest.json` — `header.description`
-- `clan_rp/manifest.json` — `header.description`
-- `clan_rp/texts/en_US.lang` — the `pack.description=` line. **This is the one
+- `sigil_bp/manifest.json` — `header.description`
+- `sigil_rp/manifest.json` — `header.description`
+- `sigil_rp/texts/en_US.lang` — the `pack.description=` line. **This is the one
   Minecraft actually shows** for the resource pack; the manifest string is only
   a fallback. Updating only the manifests leaves the resource pack showing no
   version in the pack list.
@@ -150,7 +150,7 @@ functions carry JSDoc with types, and inline comments explain the non-obvious.
 
 ## Player-visible text lives in one catalogue **[project]**
 
-Every string a player can see is in `clan_bp/scripts/text.js`, reached as
+Every string a player can see is in `sigil_bp/scripts/text.js`, reached as
 `TEXT.<namespace>.<key>`. Strings with values in them are functions taking those
 values in order, so a translation can move them around the sentence. Formatting
 codes stay inside the strings.
@@ -193,7 +193,7 @@ The bundler is not just a zip step: it validates the manifests, every version
 field, every description prefix, that each script import resolves on disk, and
 that every texture and geometry a JSON file names actually exists.
 
-Tests run the **shipped** modules — the harness copies `clan_bp/scripts/` into
+Tests run the **shipped** modules — the harness copies `sigil_bp/scripts/` into
 `tests/.generated/` with only the `@minecraft/server` import rewritten to a
 mock. What is tested is what ships, not a reimplementation.
 

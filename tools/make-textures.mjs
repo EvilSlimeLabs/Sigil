@@ -420,7 +420,7 @@ function makeWarMapIcon() {
 
 // ── Output ────────────────────────────────────────────────────────────────
 
-const out = 'clan_rp/textures';
+const out = 'sigil_rp/textures';
 console.log('clan_war_map.png      ', writePng(`${out}/blocks/clan_war_map.png`, makeWarMap()), 'bytes');
 console.log(
   'clan_war_map_item.png ',

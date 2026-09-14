@@ -277,6 +277,8 @@ await open(() => {
     maxWars: 3,
     alliancesEnabled: true,
     outpostsMayAlly: false,
+    ledgerEnabled: false,
+    warMapEnabled: false,
     notifyEnabled: true,
     notifyCreated: true,
     notifyJoined: true,
@@ -299,6 +301,8 @@ checkEqual('the last slider landed correctly', saved.opPollSeconds, 45);
 checkEqual('and the war cap', saved.maxActiveWarsPerClan, 3);
 checkEqual('and the outpost member cap', saved.maxOutpostMembers, 12);
 checkEqual('and the full-clan member cap', saved.maxClanMembers, 60);
+check('the Ledger toggle landed', saved.ledgerEnabled === false);
+check('and the War Map toggle', saved.warMapEnabled === false);
 
 // The same form under the other convention: non-inputs contribute nothing.
 // The resolver works this out from the response length, so both must land.
@@ -315,6 +319,8 @@ await open(() => {
     maxWars: 4,
     alliancesEnabled: true,
     outpostsMayAlly: false,
+    ledgerEnabled: true,
+    warMapEnabled: true,
     notifyEnabled: true,
     notifyCreated: true,
     notifyJoined: true,
@@ -334,6 +340,7 @@ check("the first toggle still lands when non-inputs take no slot", other.require
 checkEqual("and a mid-form slider", other.outpostPromotionMembers, 9);
 checkEqual("and the final slider", other.opPollSeconds, 90);
 checkEqual("and the war cap", other.maxActiveWarsPerClan, 4);
+check("and both item toggles back on", other.ledgerEnabled === true && other.warMapEnabled === true);
 ui2.__setSlotMode("all-slots");
 
 // Non-admins cannot open it at all.

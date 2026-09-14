@@ -584,7 +584,7 @@ It is a block rather than an item because the requirement asks for something pla
 
 ### Resource pack
 
-Adding custom art means a second pack, `clan_rp/`, which the behavior pack lists as a dependency so enabling one pulls in the other. It carries the War Map's model and texture, the Clan Ledger icon, and the display-name strings. Both textures are generated from a committed script (`tools/make-textures.mjs`) rather than pasted in as binary, so the art is reviewable in a diff and regenerable. The map is **64×64** rather than the usual 16 so the torn edges, stains and markings have room to read; the compass and the map's inventory icon are **16×16**, the resolution every vanilla item uses.
+Adding custom art means a second pack, `sigil_rp/`, which the behavior pack lists as a dependency so enabling one pulls in the other. It carries the War Map's model and texture, the Clan Ledger icon, and the display-name strings. Both textures are generated from a committed script (`tools/make-textures.mjs`) rather than pasted in as binary, so the art is reviewable in a diff and regenerable. The map is **64×64** rather than the usual 16 so the torn edges, stains and markings have room to read; the compass and the map's inventory icon are **16×16**, the resolution every vanilla item uses.
 
 The compass took three passes to stop looking foreign, and each pass removed a different tell. It began at 32×32 with a brass housing and a ring of evenly spaced tick marks: twice the detail of anything beside it in the hotbar, and a ring of ticks around a dial reads as a clock face rather than a compass. The second pass dropped to 16×16 and lost the ticks, but was still assembled from concentric `disc()` calls with the light and shade laid on as a diagonal sweep — and perfect circles and a mathematically straight shading seam are not how any vanilla item is drawn. The third is **a hand-authored pixel grid**, written out row by row in `tools/make-textures.mjs`: still art in code and still reviewable in a diff — more so, since the diff shows the picture — but with a chunky cut octagon for a silhouette and the shading stepped where a pixel artist would step it. The grid is checked on every run for a wrong row length or a character outside the palette, because a hand-written grid is the one thing here a typo could damage silently.
 
@@ -679,7 +679,7 @@ c:\dev\clan\
     display.test.mjs            nametag and chat composition, brackets, Peaceful
     governance.test.mjs         settings, approval queue, notifications, purge
     wars.test.mjs               outposts, declarations, kill attribution
-  clan_rp/
+  sigil_rp/
     manifest.json
     pack_icon.png
     models/blocks/war_map.geo.json  floor and wall panel geometry
@@ -689,7 +689,7 @@ c:\dev\clan\
     textures/item_texture.json
     texts/en_US.lang
     texts/languages.json
-  clan_bp/
+  sigil_bp/
     manifest.json
     pack_icon.png
     items/
@@ -758,7 +758,7 @@ The third generated UUID `37b15a1a-f323-4c80-a464-5bcb65fc77cb` is held in reser
 
 ## 10. Build order
 
-1. Scaffold: `package.json`, `tsconfig.json`, `clan_bp/manifest.json`, `pack_icon.png`.
+1. Scaffold: `package.json`, `tsconfig.json`, `sigil_bp/manifest.json`, `pack_icon.png`.
 2. `config.js`, `format.js`, `storage.js` — foundations, no game state.
 3. `players.js` — identity registry.
 4. `settings.js` — admin-editable settings merged over defaults.

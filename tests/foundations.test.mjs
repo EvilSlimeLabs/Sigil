@@ -26,6 +26,7 @@ prepare([
   'wars.js',
   'announce.js',
   'forms.js',
+  'ledger.js',
 ]);
 
 const mock = await load('mock-server.js');
@@ -38,6 +39,7 @@ const peaceful = await load('peaceful.js');
 const playersMod = await load('players.js');
 const clans = await load('clans.js');
 const wars = await load('wars.js');
+const ledger = await load('ledger.js');
 const hooks = await load('hooks.js');
 const forms = await load('forms.js');
 const { LIMITS } = await load('config.js');
@@ -349,5 +351,21 @@ check(
 );
 checkEqual('and the inputs still map in order', mismatched.str('name'), 'Typed');
 checkEqual('with the unanswered one falling back', mismatched.bool('flag'), false);
+
+// ── The two items can be switched off ─────────────────────────────────────
+// Both default on. With the Ledger off a joining player is neither issued one
+// nor marked as issued, so turning it back on still reaches them.
+check('the Ledger defaults on', settings.ledgerEnabled() === true);
+check('the War Map defaults on', settings.warMapEnabled() === true);
+
+const newcomer = new mock.Player('ledger-1', 'Newcomer');
+settings.update({ ledgerEnabled: false });
+ledger.ensure(newcomer);
+checkEqual('no Ledger is issued while it is off', newcomer.container.items.length, 0);
+settings.update({ ledgerEnabled: true });
+ledger.ensure(newcomer);
+checkEqual('one is issued once it is back on', newcomer.container.items.length, 1);
+ledger.ensure(newcomer);
+checkEqual('and only once', newcomer.container.items.length, 1);
 
 finish();

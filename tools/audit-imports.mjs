@@ -14,7 +14,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const SCRIPTS = path.join(here, '..', 'clan_bp', 'scripts');
+const SCRIPTS = path.join(here, '..', 'sigil_bp', 'scripts');
 
 /**
  * Every module in the scripts tree, as paths relative to it. The menus live in

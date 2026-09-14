@@ -1,5 +1,5 @@
 /**
- * Maintains the wording catalogue in `clan_bp/scripts/text.js`.
+ * Maintains the wording catalogue in `sigil_bp/scripts/text.js`.
  *
  * The catalogue was first produced by a one-shot extraction that keyed entries
  * by call site rather than by meaning, so the same sentence pulled from three
@@ -13,7 +13,7 @@
  *   node tools/text-codemod.mjs rename <map.json> apply {"ns.old":"ns.new"}
  *
  * `dedupe` and `rename` rewrite the catalogue and every call site in
- * `clan_bp/scripts` and `tests`, then leave verification to `npm run verify`.
+ * `sigil_bp/scripts` and `tests`, then leave verification to `npm run verify`.
  */
 
 import fs from 'node:fs';
@@ -23,7 +23,7 @@ import ts from 'typescript';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(here, '..');
-const CATALOGUE = path.join(ROOT, 'clan_bp', 'scripts', 'text.js');
+const CATALOGUE = path.join(ROOT, 'sigil_bp', 'scripts', 'text.js');
 
 /**
  * Namespaces whose keys are ids referenced from data rather than from code.
@@ -122,7 +122,7 @@ function pickWinner(group) {
  * @returns {string[]}
  */
 function callSites() {
-  const dirs = [path.join(ROOT, 'clan_bp', 'scripts'), path.join(ROOT, 'tests')];
+  const dirs = [path.join(ROOT, 'sigil_bp', 'scripts'), path.join(ROOT, 'tests')];
   const files = [];
   const walk = (dir) => {
     for (const name of fs.readdirSync(dir)) {

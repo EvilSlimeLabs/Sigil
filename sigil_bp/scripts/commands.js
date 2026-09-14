@@ -244,6 +244,11 @@ function handlePurge(player, targetArg) {
  * @param {Player} player
  */
 function handleLedger(player) {
+  if (!settings.ledgerEnabled()) {
+    player.sendMessage(errorMsg(TEXT.cmd.ledgerDisabled));
+    return;
+  }
+
   // One ledger per player. The menu it opens is the same menu whichever copy
   // is held, so a second is only ever clutter — and asking for one is how a
   // player who has misplaced theirs in a full inventory ends up with two.
@@ -708,10 +713,22 @@ function handlePromote(player) {
  */
 function handleWarMap(player) {
   if (!warsAvailable(player)) return;
+  if (!settings.warMapEnabled()) {
+    player.sendMessage(errorMsg(TEXT.cmd.warMapDisabled));
+    return;
+  }
   const clan = ownClanOrWarn(player);
   if (!clan) return;
-  if (!clans.isOwner(clan, player.id) && !staff.isAdmin(player)) {
+  const admin = staff.isAdmin(player);
+  if (!clans.isOwner(clan, player.id) && !admin) {
     player.sendMessage(errorMsg(TEXT.cmd.onlyLeaderMayGetWarMap));
+    return;
+  }
+  // An outpost can neither declare war nor be declared upon, so its Leader has
+  // no use for a map. Admins are exempt: the map is also where they correct
+  // kills, whatever clan they happen to belong to.
+  if (clans.isOutpost(clan) && !admin) {
+    player.sendMessage(errorMsg(TEXT.cmd.outpostMayNotGetWarMap(clan.name)));
     return;
   }
 

@@ -138,6 +138,8 @@ import { settingsChanged } from './hooks.js';
  * @property {boolean} warsEnabled             the war system is available at all
  * @property {boolean} alliancesEnabled        the alliance system is available at all
  * @property {boolean} outpostsMayAlly         outposts may take part in alliances
+ * @property {boolean} ledgerEnabled           the Clan Ledger is issued and opens the menu
+ * @property {boolean} warMapEnabled           the War Map is given out, placed and opens wars
  * @property {boolean} warRequiresAcceptance   a declaration must be accepted to start
  * @property {number} maxActiveWarsPerClan     0 means unlimited
  * @property {DisplaySettings} display
@@ -166,6 +168,10 @@ const DEFAULTS = {
   // Off, to match wars: an outpost is a clan that has not established itself
   // yet, and diplomacy is one of the things promotion is worth.
   outpostsMayAlly: false,
+  // Both items are shortcuts to screens a command also opens, so switching
+  // one off removes a convenience rather than a feature.
+  ledgerEnabled: true,
+  warMapEnabled: true,
   warRequiresAcceptance: true,
   maxActiveWarsPerClan: 0,
   display: {
@@ -366,6 +372,24 @@ export function alliancesEnabled() {
  */
 export function outpostsMayAlly() {
   return get().outpostsMayAlly === true;
+}
+
+/**
+ * Whether the Clan Ledger is issued to joining players and opens the menu.
+ *
+ * @returns {boolean}
+ */
+export function ledgerEnabled() {
+  return get().ledgerEnabled !== false;
+}
+
+/**
+ * Whether the War Map may be given out and placed, and opens the war screen.
+ *
+ * @returns {boolean}
+ */
+export function warMapEnabled() {
+  return get().warMapEnabled !== false;
 }
 
 /**

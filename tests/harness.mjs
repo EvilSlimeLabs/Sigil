@@ -15,7 +15,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const scriptsDir = path.join(here, '..', 'clan_bp', 'scripts');
+const scriptsDir = path.join(here, '..', 'sigil_bp', 'scripts');
 const generatedDir = path.join(here, '.generated');
 
 /**

@@ -28,7 +28,9 @@
  *
  * ── Placement ──────────────────────────────────────────────────────────────
  *
- * Two rules, both enforced here rather than declared as components.
+ * Refused outright while the War Map is switched off in the settings.
+ * Otherwise two rules apply, both enforced here rather than declared as
+ * components.
  * `beforeOnPlayerPlace` refuses a downward face, because there is no ceiling
  * geometry and no support direction for one. It also refuses a cell with
  * nothing behind it, which {@link canHangHere} decides.
@@ -103,6 +105,13 @@ export function openWarScreen(player) {
   const previous = lastInteraction.get(player.id);
   if (previous !== undefined && now - previous < INTERACT_COOLDOWN_TICKS) return;
   lastInteraction.set(player.id, now);
+
+  // Checked after the cooldown so the two interaction paths send one message.
+  // A map still on a wall after the switch goes off stays up but opens nothing.
+  if (!settings.warMapEnabled()) {
+    player.sendMessage(errorMsg(TEXT.cmd.warMapDisabled));
+    return;
+  }
 
   system.run(() => ui.warMenu(player));
 }
@@ -206,6 +215,13 @@ export function register(registry) {
   try {
     registry.registerCustomComponent(WAR_MAP_COMPONENT, {
       beforeOnPlayerPlace: (event) => {
+        if (!settings.warMapEnabled()) {
+          event.cancel = true;
+          // A before-event runs read-only, so the message waits a tick.
+          const player = event.player;
+          if (player) system.run(() => player.sendMessage(errorMsg(TEXT.cmd.warMapDisabled)));
+          return;
+        }
         // `face` is the face being built against, so a downward one means the
         // map is being hung from a ceiling. There is no ceiling geometry and no
         // support direction for one.

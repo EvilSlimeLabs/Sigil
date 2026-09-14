@@ -18,6 +18,7 @@
 import { ItemStack } from '@minecraft/server';
 import { LEDGER_ITEM, WAR_MAP_BLOCK, KEY } from './config.js';
 import { getString, setString } from './storage.js';
+import * as settings from './settings.js';
 
 /**
  * Whether a stack is the Clan Ledger.
@@ -74,6 +75,10 @@ export function give(player) {
  * @param {import('@minecraft/server').Player} player
  */
 export function ensure(player) {
+  // Checked before the issued flag is written, so a player who joins while the
+  // Ledger is off still receives one once it is turned back on.
+  if (!settings.ledgerEnabled()) return;
+
   // Issued once, not on every join. A player who threw theirs away meant to,
   // and `/clan:ledger` is there when they change their mind.
   if (getString(KEY.ledgerIssued + player.id) !== undefined) return;
